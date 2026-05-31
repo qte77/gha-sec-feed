@@ -62,8 +62,8 @@ For each deferred source:
 ## Allowlist coupling
 
 The same allowlist that governs our GitHub Actions (org-level baseline,
-applied via the [L1 org-settings baseline](https://github.com/qte77/repo-baseline))
-does **not** apply to outbound HTTP from the producer — that's covered by
+applied via an internal `repo-baseline` tool — not public-linkable) does
+**not** apply to outbound HTTP from the producer — that's covered by
 [`src/gha_sec_feed/http.py`](../src/gha_sec_feed/http.py)'s `_ALLOWED_HOSTS`
 frozenset. The two allowlists are independent: one for build-time
 third-party actions, one for runtime egress.
