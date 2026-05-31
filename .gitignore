@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+pytest-of-*/
+
+# Build artifacts (hatchling)
+dist/
+build/
+*.egg-info/
+
+# IDE / editor (trailing-slash omitted: parent-env pollution may surface as
+# character-special devices rather than directories)
+.vscode
+.idea
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Shell dotfiles (parent-env pollution; never tracked here)
+.bash_profile
+.bashrc
+.profile
+.zprofile
+.zshrc
+.gitconfig
+.gitmodules
+.mcp.json
+.ripgreprc
+
+# Claude Code (project session-only state; user-global config lives elsewhere)
+.claude/
+MEMORY.md
+
+# OS
+.DS_Store
+Thumbs.db
