@@ -1,0 +1,26 @@
+// markdownlint-cli2 config — single source of truth for rules + path ignores.
+// Mirrors the qte77 org baseline used in doc-pipeline-engine + the original
+// brief's spec, restored on first concrete need (umbrella tracking issue #2).
+{
+  "config": {
+    "default": true,
+    // Line length: disabled. README + GLOSSARY tables routinely exceed 80
+    // cols when carrying URLs; manual wrapping makes them less readable.
+    "MD013": false,
+    // First-line H1: not enforced — README's H1 is the project name on line 1
+    // which satisfies the rule; some docs use a different style.
+    "MD041": false,
+    // Inline HTML: allowed (used for SVG icons, details/summary, etc.).
+    "MD033": false,
+    // Duplicate headings: allowed when not siblings (e.g., per-source "## API")
+    "MD024": { "siblings_only": true },
+    // Tables: padded style (one space inside each pipe).
+    "MD060": { "style": "padded" }
+  },
+  "globs": ["**/*.md"],
+  "ignores": [
+    ".venv/**",
+    "node_modules/**",
+    "data/**"
+  ]
+}

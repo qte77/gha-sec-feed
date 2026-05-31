@@ -67,6 +67,7 @@ documented here so that the brief author or a future-me can restore individual
 items on first concrete user request.
 
 **Cut:**
+
 - 8 of 10 brief sources (only NVD + CISA KEV; the rest — EPSS, GHSA, OSV, RHSA, USN, urlhaus, threatfox, malwarebazaar — are deferred)
 - All Pydantic machinery (`pydantic`, `pydantic-settings`, `AppSettings`) — plain dicts; consumers validate at their boundary
 - All governance files (`AGENTS.md`, `AGENT_LEARNINGS.md`, `AGENT_REQUESTS.md`, `CONTRIBUTING.md`, `CODEOWNERS`)
@@ -82,6 +83,7 @@ items on first concrete user request.
 - In-repo `.claude/skills/`, `.claude/rules/` — user-global config covers
 
 **Kept verbatim from the brief:**
+
 - C1 contract (row shape + meta shape, locked at v1.0.0)
 - `_ALLOWED_HOSTS` egress allowlist (Megalodon-style defence)
 - Identity-shape `User-Agent` defaulted on every outbound request
