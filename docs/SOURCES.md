@@ -9,23 +9,23 @@ See [`GLOSSARY.md`](GLOSSARY.md) for acronym expansions.
 
 ## Active in v0.1.0
 
-| `source` slug | Catalog | Endpoint | Auth | Notes |
+| `source` slug | Catalog | Endpoint + 1p docs | Auth | Notes |
 |---|---|---|---|---|
-| `nvd` | NVD CVE API v2 | `https://services.nvd.nist.gov/rest/json/cves/2.0` | Optional `NVD_API_KEY` env var raises rate limit 5/30s → 50/30s | Canonical CVE database; broadest coverage; CVSS scores |
-| `cisa-kev` | CISA Known Exploited Vulnerabilities catalog | `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` | None | High-signal subset (~1,600 entries) of actively-exploited CVEs |
+| `nvd` | NVD CVE API v2 | `https://services.nvd.nist.gov/rest/json/cves/2.0` · [API docs](https://nvd.nist.gov/developers/vulnerabilities) | Optional [`NVD_API_KEY`](https://nvd.nist.gov/developers/request-an-api-key) env var raises rate limit 5/30s → 50/30s | Canonical CVE database; broadest coverage; CVSS scores |
+| `cisa-kev` | CISA Known Exploited Vulnerabilities catalog | `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` · [catalog homepage](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | None | High-signal subset (~1,600 entries) of actively-exploited CVEs |
 
 ## Deferred (restore on first concrete request)
 
-| `source` slug | Catalog | Endpoint | Why deferred |
+| `source` slug | Catalog | Endpoint + 1p docs | Why deferred |
 |---|---|---|---|
-| `epss` | FIRST.org EPSS | `https://api.first.org/data/v1/epss` | Orthogonal probability score; useful once we have a consumer who ranks |
-| `ghsa` | GitHub Security Advisories | `https://api.github.com/graphql` (advisory search) | Ecosystem-tagged (npm / PyPI / Go / RubyGems) → better stack mapping than NVD for downstream filtering |
-| `osv` | Google OSV.dev | `https://api.osv.dev/v1/query` | Distributed vuln DB; OSV-Scanner consumes the same format |
-| `redhat` | Red Hat Security Data API | `https://access.redhat.com/hydra/rest/securitydata/cve.json` | RHEL / UBI advisories — needed when Docker base images are RHEL/UBI |
-| `ubuntu` | Ubuntu Security Notices | `https://ubuntu.com/security/notices.json` | Same for Ubuntu base images |
-| `urlhaus` | abuse.ch URLhaus | `https://urlhaus-api.abuse.ch/` | Non-CVE IOCs (malicious URLs) |
-| `threatfox` | abuse.ch ThreatFox | `https://threatfox-api.abuse.ch/api/v1/` | Non-CVE IOCs (general threat indicators) |
-| `malwarebazaar` | abuse.ch MalwareBazaar | `https://mb-api.abuse.ch/api/v1/` | Non-CVE IOCs (malware samples) |
+| `epss` | FIRST.org EPSS | `https://api.first.org/data/v1/epss` · [API docs](https://www.first.org/epss/api) | Orthogonal probability score; useful once we have a consumer who ranks |
+| `ghsa` | GitHub Security Advisories | GraphQL `securityAdvisories` on `https://api.github.com/graphql` · [API reference](https://docs.github.com/en/graphql/reference/queries#securityadvisories) | Ecosystem-tagged (npm / PyPI / Go / RubyGems) → better stack mapping than NVD for downstream filtering |
+| `osv` | Google OSV.dev | `https://api.osv.dev/v1/query` · [API docs](https://google.github.io/osv.dev/api/) | Distributed vuln DB; OSV-Scanner consumes the same format |
+| `redhat` | Red Hat Security Data API | `https://access.redhat.com/hydra/rest/securitydata/cve.json` · [API docs](https://access.redhat.com/articles/red_hat_security_data_api) | RHEL / UBI advisories — needed when Docker base images are RHEL/UBI |
+| `ubuntu` | Ubuntu Security Notices | `https://ubuntu.com/security/notices.json` · [catalog homepage](https://ubuntu.com/security/notices) | Same for Ubuntu base images |
+| `urlhaus` | abuse.ch URLhaus | `https://urlhaus-api.abuse.ch/` · [API docs](https://urlhaus.abuse.ch/api/) | Non-CVE IOCs (malicious URLs) |
+| `threatfox` | abuse.ch ThreatFox | `https://threatfox-api.abuse.ch/api/v1/` · [API docs](https://threatfox.abuse.ch/api/) | Non-CVE IOCs (general threat indicators) |
+| `malwarebazaar` | abuse.ch MalwareBazaar | `https://mb-api.abuse.ch/api/v1/` · [API docs](https://bazaar.abuse.ch/api/) | Non-CVE IOCs (malware samples) |
 
 The umbrella tracking issue for restoring deferred sources is referenced
 from the README's "Brief deviations" section and from the PR that scaffolded
@@ -61,8 +61,8 @@ For each deferred source:
 
 ## Allowlist coupling
 
-The same allowlist (`gh-security-posture/05-mandatory-actions-selected-allowlist.json`)
-that governs our GitHub Actions does **not** apply to outbound HTTP from the
-producer — that's covered by `src/gha_sec_feed/http.py:_ALLOWED_HOSTS`. The
-two allowlists are independent: one for build-time third-party actions, one
-for runtime egress.
+The same allowlist that governs our GitHub Actions (org-level baseline,
+applied via `qte77/repo-baseline/L1-org-settings/`) does **not** apply to
+outbound HTTP from the producer — that's covered by
+`src/gha_sec_feed/http.py:_ALLOWED_HOSTS`. The two allowlists are
+independent: one for build-time third-party actions, one for runtime egress.
