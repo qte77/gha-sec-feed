@@ -30,18 +30,6 @@ the brief and deferred per KISS until a concrete consumer needs them.
 | **JSONL** | JSON Lines — newline-delimited JSON; one row per line; aka **NDJSON** |
 | **NDJSON** | Newline-Delimited JSON (= JSONL) |
 
-## Practices and disciplines
-
-| Term | Meaning |
-|---|---|
-| **TDD** | Test-Driven Development (Red-Green-Refactor) |
-| **KISS** | Keep It Simple, Stupid |
-| **DRY** | Don't Repeat Yourself |
-| **YAGNI** | You Aren't Gonna Need It |
-| **AHA** | Avoid Hasty Abstractions |
-| **ADR** | Architecture Decision Record |
-| **LoC** | Lines of Code |
-
 ## Supply chain and security
 
 | Term | Meaning |
@@ -58,14 +46,3 @@ the brief and deferred per KISS until a concrete consumer needs them.
 |---|---|
 | **ATT&CK** | Adversarial Tactics, Techniques, and Common Knowledge |
 | **D3FEND** | Defensive countermeasure ontology |
-
-## Build and runtime
-
-| Term | Meaning |
-|---|---|
-| **GHA** | GitHub Actions |
-| **CI** | Continuous Integration |
-| **PR** | Pull Request |
-| **UA** | User-Agent (HTTP header) |
-| **MIME** | Multipurpose Internet Mail Extensions (Accept / Content-Type values) |
-| **OIDC** | OpenID Connect (GitHub Actions token federation) |
