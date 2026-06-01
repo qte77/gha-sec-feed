@@ -1,0 +1,47 @@
+{
+  "title": "CISA Catalog of Known Exploited Vulnerabilities",
+  "catalogVersion": "2026.05.29",
+  "dateReleased": "2026-05-29T19:00:06.0000Z",
+  "count": 3,
+  "vulnerabilities": [
+    {
+      "cveID": "CVE-2026-2001",
+      "vendorProject": "TestVendor",
+      "product": "TestProduct",
+      "vulnerabilityName": "TestVendor TestProduct Authentication Bypass",
+      "dateAdded": "2026-05-29",
+      "shortDescription": "Authentication bypass in TestProduct.",
+      "requiredAction": "Apply mitigations per vendor instructions.",
+      "dueDate": "2026-06-19",
+      "knownRansomwareCampaignUse": "Known",
+      "notes": "https://security.testvendor.example/CVE-2026-2001",
+      "cwes": ["CWE-287"]
+    },
+    {
+      "cveID": "CVE-2026-2002",
+      "vendorProject": "AnotherVendor",
+      "product": "AnotherProduct",
+      "vulnerabilityName": "AnotherVendor AnotherProduct RCE",
+      "dateAdded": "2026-05-28",
+      "shortDescription": "Remote code execution vulnerability.",
+      "requiredAction": "Apply updates per vendor instructions.",
+      "dueDate": "2026-06-18",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "",
+      "cwes": ["CWE-78"]
+    },
+    {
+      "cveID": "CVE-2026-2003",
+      "vendorProject": "ThirdVendor",
+      "product": "ThirdProduct",
+      "vulnerabilityName": "ThirdProduct Path Traversal",
+      "dateAdded": "2026-05-27",
+      "shortDescription": "Path traversal vulnerability.",
+      "requiredAction": "Apply vendor patches.",
+      "dueDate": "2026-06-17",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "https://example.com/advisory/CVE-2026-2003",
+      "cwes": ["CWE-22"]
+    }
+  ]
+}
