@@ -1,0 +1,22 @@
+{
+  "item_count": 3607,
+  "last_run": "2026-06-01T20:11:01Z",
+  "schema_version": "1.0.0",
+  "sources": [
+    {
+      "attribution": "This product uses the NVD API but is not endorsed or certified by the NVD.",
+      "id": "nvd",
+      "license": "US-Government-Work",
+      "name": "National Vulnerability Database (NVD)",
+      "url": "https://nvd.nist.gov/"
+    },
+    {
+      "attribution": "CISA KEV Catalog \u2014 public domain, no endorsement implied.",
+      "id": "cisa-kev",
+      "license": "CC0-1.0",
+      "name": "CISA Known Exploited Vulnerabilities Catalog",
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+    }
+  ],
+  "tool_version": "0.1.0"
+}
