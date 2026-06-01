@@ -47,7 +47,10 @@ jobs:
       - name: Open auto-merged PR if data changed
         run: |
           set -euo pipefail
-          if git diff --quiet data/; then
+          # `git diff --quiet` only flags MODIFIED tracked files. Use
+          # `git status --porcelain` so newly-written files (the
+          # common case on a fresh `data/`) are detected too.
+          if [[ -z "$(git status --porcelain data/)" ]]; then
             echo "no changes to data/, nothing to do"
             exit 0
           fi
