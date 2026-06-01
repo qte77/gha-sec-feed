@@ -9,8 +9,8 @@ See tracking issue #4.
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
+from json import loads
 from typing import Any
 from urllib.parse import urlencode
 
@@ -76,5 +76,5 @@ def fetch(since: str) -> list[dict[str, Any]]:
     """
     pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     url = f"{_ENDPOINT}?{urlencode({'pubStartDate': since, 'pubEndDate': pub_end})}"
-    payload = json.loads(http.get(url))
+    payload = loads(http.get(url))
     return [_to_row(item["cve"]) for item in payload.get("vulnerabilities", [])]

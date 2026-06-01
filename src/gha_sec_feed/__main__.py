@@ -11,7 +11,7 @@ have to scrape upstream pages for legal notices.
 
 from __future__ import annotations
 
-import argparse
+from argparse import ArgumentParser
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -82,7 +82,7 @@ def _build_meta(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> None:
     """CLI entrypoint: fetch, merge, write."""
-    parser = argparse.ArgumentParser(prog="gha_sec_feed")
+    parser = ArgumentParser(prog="gha_sec_feed")
     parser.add_argument(
         "--out",
         type=Path,

@@ -6,7 +6,7 @@ catalog update. No authentication, no documented rate limit.
 
 from __future__ import annotations
 
-import json
+from json import loads
 from typing import Any
 
 from gha_sec_feed import http
@@ -51,5 +51,5 @@ def fetch() -> list[dict[str, Any]]:
         Every row has ``kev=True``, ``severity="unknown"``, and ``cvss=None``
         (the KEV feed does not ship CVSS scores).
     """
-    payload = json.loads(http.get(_ENDPOINT))
+    payload = loads(http.get(_ENDPOINT))
     return [_to_row(entry) for entry in payload.get("vulnerabilities", [])]

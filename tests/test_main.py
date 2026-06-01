@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+from json import loads
 from pathlib import Path
 from typing import Any
 
@@ -126,10 +126,10 @@ def test_main_writes_feed_and_meta_to_out_dir(tmp_path: Path, monkeypatch: pytes
 
     jsonl = (tmp_path / "feed.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(jsonl) == 2  # dedupe collapsed CVE-100 across sources
-    ids = {json.loads(line)["id"] for line in jsonl}
+    ids = {loads(line)["id"] for line in jsonl}
     assert ids == {"CVE-100", "CVE-200"}
 
-    meta = json.loads((tmp_path / "feed-meta.json").read_text(encoding="utf-8"))
+    meta = loads((tmp_path / "feed-meta.json").read_text(encoding="utf-8"))
     assert meta["item_count"] == 2
     assert {s["id"] for s in meta["sources"]} == {"nvd", "cisa-kev"}
 

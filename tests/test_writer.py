@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+from json import loads
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -54,14 +54,14 @@ def test_writes_rows_as_one_json_object_per_line(tmp_path: Path):
     text = (tmp_path / "feed.jsonl").read_text(encoding="utf-8")
     lines = text.splitlines()
     assert len(lines) == 2
-    parsed = [json.loads(line) for line in lines]
+    parsed = [loads(line) for line in lines]
     assert parsed == _rows()
 
 
 def test_writes_meta_as_valid_json(tmp_path: Path):
     write_feed(_rows(), _meta(), tmp_path)
 
-    parsed = json.loads((tmp_path / "feed-meta.json").read_text(encoding="utf-8"))
+    parsed = loads((tmp_path / "feed-meta.json").read_text(encoding="utf-8"))
     assert parsed == _meta()
 
 
@@ -90,7 +90,7 @@ def test_atomic_write_leaves_previous_file_intact_on_failure(tmp_path: Path):
     original_meta = (tmp_path / "feed-meta.json").read_bytes()
 
     # Next call: rename fails mid-stream. Original files must NOT be clobbered.
-    with patch("gha_sec_feed.writer.os.replace", side_effect=OSError("disk full")):
+    with patch("gha_sec_feed.writer.replace", side_effect=OSError("disk full")):
         with pytest.raises(OSError, match="disk full"):
             write_feed([{"id": "NEW", "source": "nvd"}], {"item_count": 1}, tmp_path)
 
@@ -99,7 +99,7 @@ def test_atomic_write_leaves_previous_file_intact_on_failure(tmp_path: Path):
 
 
 def test_atomic_write_cleans_up_tempfile_on_failure(tmp_path: Path):
-    with patch("gha_sec_feed.writer.os.replace", side_effect=OSError("disk full")):
+    with patch("gha_sec_feed.writer.replace", side_effect=OSError("disk full")):
         with pytest.raises(OSError):
             write_feed(_rows(), _meta(), tmp_path)
 

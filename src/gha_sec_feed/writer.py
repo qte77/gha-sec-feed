@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
-import os
+from json import dumps
+from os import replace
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,7 @@ def _write_text_atomic(path: Path, content: str) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     try:
         tmp.write_text(content, encoding="utf-8")
-        os.replace(tmp, path)
+        replace(tmp, path)
     except BaseException:
         if tmp.exists():
             tmp.unlink()
@@ -34,10 +34,10 @@ def write_feed(rows: list[dict[str, Any]], meta: dict[str, Any], out_dir: Path) 
     succeed end-to-end, or any partially-written tempfile is removed and the
     previous file (if any) is left intact.
 
-    Output is deterministic: ``json.dumps(..., sort_keys=True)`` for both,
-    so identical inputs produce byte-identical outputs across runs.
+    Output is deterministic: ``dumps(..., sort_keys=True)`` for both, so
+    identical inputs produce byte-identical outputs across runs.
     """
-    rows_text = "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
-    meta_text = json.dumps(meta, sort_keys=True, indent=2) + "\n"
+    rows_text = "".join(dumps(row, sort_keys=True) + "\n" for row in rows)
+    meta_text = dumps(meta, sort_keys=True, indent=2) + "\n"
     _write_text_atomic(out_dir / _JSONL_NAME, rows_text)
     _write_text_atomic(out_dir / _META_NAME, meta_text)

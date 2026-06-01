@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+from json import loads
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,6 @@ FIXTURES = Path(__file__).parent / "fixtures"
 def load_fixture():
     def _load(name: str) -> Any:
         path = FIXTURES / name
-        return json.loads(path.read_text(encoding="utf-8"))
+        return loads(path.read_text(encoding="utf-8"))
 
     return _load

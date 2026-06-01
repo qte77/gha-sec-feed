@@ -9,8 +9,8 @@ is opened. The pattern is borrowed from
 
 from __future__ import annotations
 
-import os
-import time
+from os import environ
+from time import sleep
 from typing import Final
 from urllib.parse import urlparse
 
@@ -39,7 +39,7 @@ _NVD_HOST: Final[str] = "services.nvd.nist.gov"
 
 def _sleep(seconds: float) -> None:
     """Indirection over :func:`time.sleep` so tests can intercept retry waits."""
-    time.sleep(seconds)
+    sleep(seconds)
 
 
 def _validate_url(url: str) -> None:
@@ -71,7 +71,7 @@ def _build_headers(url: str, headers: dict[str, str] | None) -> dict[str, str]:
     if "accept" not in keys_lower:
         merged["Accept"] = _DEFAULT_ACCEPT
     if urlparse(url).hostname == _NVD_HOST and "apikey" not in keys_lower:
-        nvd_key = os.environ.get("NVD_API_KEY")
+        nvd_key = environ.get("NVD_API_KEY")
         if nvd_key:
             merged["apiKey"] = nvd_key
     return merged
