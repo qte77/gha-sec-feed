@@ -15,7 +15,8 @@ from argparse import ArgumentParser
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from gha_sec_feed import __version__, kev, nvd, writer
+from gha_sec_feed import __version__, writer
+from gha_sec_feed.fetchers import kev, nvd
 from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedMeta, FeedRow, SourceEntry
 
 # Per-source manifest emitted into feed-meta.json sources[]. Adding a new

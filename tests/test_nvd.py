@@ -1,4 +1,4 @@
-"""Tests for ``gha_sec_feed.nvd`` — NVD CVE API v2 fetcher."""
+"""Tests for ``gha_sec_feed.fetchers.nvd`` — NVD CVE API v2 fetcher."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
+from gha_sec_feed.fetchers.nvd import _severity, fetch
 from gha_sec_feed.models import FeedRow
-from gha_sec_feed.nvd import _severity, fetch
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nvd_sample.json"
 SINCE = "2026-05-01T00:00:00Z"
@@ -24,7 +24,7 @@ def mock_http(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         captured["url"] = url
         return fixture_bytes
 
-    monkeypatch.setattr("gha_sec_feed.nvd.http.get", fake_get)
+    monkeypatch.setattr("gha_sec_feed.fetchers.nvd.http.get", fake_get)
     return captured
 
 
