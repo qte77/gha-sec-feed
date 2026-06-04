@@ -41,6 +41,22 @@ def _normalize_published(value: str) -> str:
     return value.split(".", 1)[0].rstrip("Z") + "Z"
 
 
+def _to_nvd_timestamp(iso: str) -> str:
+    """Reformat any ISO-style timestamp to NVD's required millisecond form.
+
+    NVD CVE API v2 requires ``YYYY-MM-DDThh:mm:ss.000`` for the
+    ``pubStartDate`` and ``pubEndDate`` query params — millisecond
+    precision and no trailing ``Z``. The Z-suffixed ISO form that the
+    rest of this codebase uses returns HTTP 404. Accept any reasonable
+    ISO input (Z-suffixed, fractional seconds present or absent) and
+    output the canonical NVD shape.
+
+    See https://nvd.nist.gov/developers/vulnerabilities (``pubStartDate``).
+    """
+    base = iso.split(".", 1)[0].rstrip("Z")
+    return f"{base}.000"
+
+
 def _extract_base_score(cve: dict[str, Any]) -> float | None:
     """Pull a CVSS v3.1 ``baseScore`` if present; otherwise ``None``."""
     metrics = cve.get("metrics", {}).get("cvssMetricV31") or []
@@ -102,18 +118,8 @@ def fetch(since: str) -> list[FeedRow]:
     Returns:
         List of :class:`FeedRow`, one per ``vulnerabilities[].cve``.
     """
-    # KNOWN ISSUE #27: NVD CVE API v2 returns HTTP 404 for the format
-    # below as of 2026-06-04. The documented format (per
-    # https://nvd.nist.gov/developers/vulnerabilities, see `pubStartDate`)
-    # is `YYYY-MM-DDThh:mm:ss.000` — millisecond precision and **no Z**
-    # suffix. We currently send `...HH:MM:SSZ` for both `pubStartDate`
-    # (forwarded from the caller's `since` arg, formatted by
-    # `_iso_z`/`_default_since` in gha_sec_feed.__main__) and `pubEndDate`
-    # (the strftime call below). Both sites must move to the .000 form
-    # without Z. The same change also applies to the workflow's
-    # `Run producer` step in .github/workflows/update_feed.yaml where
-    # `since` is computed by `date -u -d '8 days ago' +%FT%TZ`.
-    pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    url = f"{_ENDPOINT}?{urlencode({'pubStartDate': since, 'pubEndDate': pub_end})}"
+    pub_start = _to_nvd_timestamp(since)
+    pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000")
+    url = f"{_ENDPOINT}?{urlencode({'pubStartDate': pub_start, 'pubEndDate': pub_end})}"
     payload = loads(http.get(url))
     return [_to_row(item["cve"]) for item in payload.get("vulnerabilities", [])]

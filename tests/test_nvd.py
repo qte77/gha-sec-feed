@@ -28,11 +28,33 @@ def mock_http(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return captured
 
 
-def test_fetch_calls_http_with_pub_start_date_from_since(mock_http: dict[str, Any]):
+def test_fetch_calls_http_with_pub_start_date_in_nvd_millisecond_format(
+    mock_http: dict[str, Any],
+):
+    # NVD CVE API v2 requires `YYYY-MM-DDThh:mm:ss.000` (millisecond
+    # precision, no trailing Z) — sending the ISO-Z form returns HTTP
+    # 404. The fetcher must reformat the caller-supplied `since` arg
+    # internally so callers can keep passing the user-facing ISO-Z form.
+    # See https://nvd.nist.gov/developers/vulnerabilities and #27.
     fetch(SINCE)
-    assert "pubStartDate=" in mock_http["url"]
-    assert SINCE.replace(":", "%3A") in mock_http["url"]
+    assert "pubStartDate=2026-05-01T00%3A00%3A00.000" in mock_http["url"]
+    # Anti-regression: the Z-suffixed form must not appear.
+    assert "pubStartDate=2026-05-01T00%3A00%3A00Z" not in mock_http["url"]
     assert mock_http["url"].startswith("https://services.nvd.nist.gov/rest/json/cves/2.0")
+
+
+def test_fetch_url_pub_end_date_uses_nvd_millisecond_format(
+    mock_http: dict[str, Any],
+):
+    # pubEndDate is computed inside fetch() (datetime.now); assert the
+    # format alone without pinning the value. Catches the impl using
+    # strftime "%Y-%m-%dT%H:%M:%SZ" (the pre-#27 buggy form).
+    import re
+
+    fetch(SINCE)
+    # Expect pubEndDate=YYYY-MM-DDTHH%3AMM%3ASS.000 — no Z suffix.
+    pattern = r"pubEndDate=\d{4}-\d{2}-\d{2}T\d{2}%3A\d{2}%3A\d{2}\.000(?!Z)"
+    assert re.search(pattern, mock_http["url"]), mock_http["url"]
 
 
 def test_fetch_returns_one_feedrow_per_vulnerability(mock_http: dict[str, Any]):
