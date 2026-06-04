@@ -39,6 +39,8 @@ def _to_row(entry: dict[str, Any]) -> FeedRow:
         epss=None,
         kev=True,
         refs=_refs(entry.get("notes", "")),
+        description=entry.get("shortDescription", ""),
+        cwes=list(entry.get("cwes", [])),
     )
 
 
