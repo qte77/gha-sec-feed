@@ -8,6 +8,22 @@ posture per source.
 
 See [`GLOSSARY.md`](GLOSSARY.md) for acronym expansions.
 
+## Schema + filter capability (v0.2.0)
+
+C1 is at **schema 1.1.0** as of v0.2.0. Additive over 1.0.0: rows gain
+`description` (English free text) and `cwes` (CWE-prefixed identifiers).
+v1.0.0 consumers reading v1.1.0 rows see extra keys they can ignore.
+
+The producer applies an optional, env-driven row filter post-merge.
+Four knobs — `severity_min`, `kev_only`, `cwe_include`, `keywords` —
+all default to "no filter" so callers who set nothing receive the full
+merged feed (v0.1.0 behaviour preserved). The reusable workflow
+(`.github/workflows/update_feed.yaml`, `workflow_call:` surface) maps
+its inputs to the corresponding `GSF_*` env vars on the producer step.
+
+This repo's own cron uses a qte77-stack keyword set as a **showcase**
+of the filter capability — see [README §Showcase scope](../README.md#showcase-scope).
+
 ## Active in v0.1.0
 
 | `source` slug | Catalog | Endpoint + 1p docs | Auth | Licence | Attribution required |

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from gha_sec_feed.fetchers.kev import _CATALOG_URL, fetch
-from gha_sec_feed.models import FeedRow
+from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedRow
 
 FIXTURE = Path(__file__).parent / "fixtures" / "kev_sample.json"
 
@@ -48,7 +48,7 @@ def test_fetch_emits_c1_static_fields_on_every_row(mock_http: dict[str, Any]):
         assert row.severity == "unknown"
         assert row.cvss is None
         assert row.epss is None
-        assert row.schema_version == "1.0.0"
+        assert row.schema_version == FEED_SCHEMA_VERSION
 
 
 def test_fetch_normalizes_date_added_to_iso_z_midnight(mock_http: dict[str, Any]):
@@ -69,3 +69,22 @@ def test_fetch_falls_back_to_catalog_url_when_notes_empty(mock_http: dict[str, A
     # CVE-2026-2002 has empty notes — must still have ≥1 ref per C1
     assert rows["CVE-2026-2002"].refs == [_CATALOG_URL]
     assert len(rows["CVE-2026-2002"].refs) == 1
+
+
+def test_fetch_passes_shortDescription_into_description_field(mock_http: dict[str, Any]):
+    # KEV ships the human-readable text under `shortDescription` (not
+    # `description`). Catches forgetting to wire the field through, or
+    # mis-naming the source key.
+    rows = {r.id: r for r in fetch()}
+    assert rows["CVE-2026-2001"].description == "Authentication bypass in TestProduct."
+    assert rows["CVE-2026-2002"].description == "Remote code execution vulnerability."
+
+
+def test_fetch_passes_through_cwes_list_verbatim(mock_http: dict[str, Any]):
+    # KEV `cwes` is already an array of CWE-prefixed IDs — no filter or
+    # dedup needed. Catches the impl confusing KEV's flat list with NVD's
+    # nested weaknesses[].description[] shape.
+    rows = {r.id: r for r in fetch()}
+    assert rows["CVE-2026-2001"].cwes == ["CWE-287"]
+    assert rows["CVE-2026-2002"].cwes == ["CWE-78"]
+    assert rows["CVE-2026-2003"].cwes == ["CWE-22"]

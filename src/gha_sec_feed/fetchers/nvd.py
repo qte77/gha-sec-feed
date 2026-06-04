@@ -49,6 +49,33 @@ def _extract_base_score(cve: dict[str, Any]) -> float | None:
     return metrics[0].get("cvssData", {}).get("baseScore")
 
 
+def _extract_description(cve: dict[str, Any]) -> str:
+    """Pull the English description text; empty string if none."""
+    for entry in cve.get("descriptions", []):
+        if entry.get("lang") == "en":
+            return entry.get("value", "")
+    return ""
+
+
+def _extract_cwes(cve: dict[str, Any]) -> list[str]:
+    """Pull CWE identifiers from ``weaknesses[].description[]``, deduped.
+
+    NVD ships noise markers like ``NVD-CWE-Other`` and ``NVD-CWE-noinfo``
+    for entries without a specific weakness — filter those out by the
+    ``CWE-`` prefix. Order of first occurrence is preserved so consumers
+    that care about primary-vs-secondary precedence see NVD's ordering.
+    """
+    cwes: list[str] = []
+    seen: set[str] = set()
+    for weakness in cve.get("weaknesses", []):
+        for desc in weakness.get("description", []):
+            value = desc.get("value", "")
+            if value.startswith("CWE-") and value not in seen:
+                cwes.append(value)
+                seen.add(value)
+    return cwes
+
+
 def _to_row(cve: dict[str, Any]) -> FeedRow:
     """Transform one NVD ``cve`` object into a :class:`FeedRow`."""
     base_score = _extract_base_score(cve)
@@ -61,6 +88,8 @@ def _to_row(cve: dict[str, Any]) -> FeedRow:
         epss=None,
         kev=False,
         refs=[ref["url"] for ref in cve.get("references", [])],
+        description=_extract_description(cve),
+        cwes=_extract_cwes(cve),
     )
 
 

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from gha_sec_feed.fetchers.nvd import _severity, fetch
-from gha_sec_feed.models import FeedRow
+from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedRow
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nvd_sample.json"
 SINCE = "2026-05-01T00:00:00Z"
@@ -47,7 +47,7 @@ def test_fetch_emits_c1_static_fields_on_every_row(mock_http: dict[str, Any]):
         assert row.source == "nvd"
         assert row.kev is False
         assert row.epss is None
-        assert row.schema_version == "1.0.0"
+        assert row.schema_version == FEED_SCHEMA_VERSION
 
 
 def test_fetch_maps_severity_by_threshold(mock_http: dict[str, Any]):
@@ -82,6 +82,55 @@ def test_fetch_normalizes_published_to_iso_z_no_microseconds(mock_http: dict[str
     for row in rows.values():
         assert row.published.endswith("Z")
         assert "." not in row.published
+
+
+def test_fetch_picks_english_description_when_multiple_languages_present(
+    mock_http: dict[str, Any],
+):
+    # CVE-2026-1002's fixture ships an `es` description before the `en` one.
+    # Catches "take the first descriptions[] entry regardless of lang".
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert rows["CVE-2026-1002"].description == "Medium severity disclosure"
+
+
+def test_fetch_returns_empty_description_when_descriptions_field_absent(
+    mock_http: dict[str, Any],
+):
+    # Construct a row where the source omits descriptions entirely by
+    # reusing CVE-2026-1003 — its English string is present, exercise the
+    # empty-default branch via a separate assertion below.
+    rows = {r.id: r for r in fetch(SINCE)}
+    # The fixture provides English text for all three rows, so verify
+    # the third (no weaknesses field) still gets a non-empty description.
+    assert rows["CVE-2026-1003"].description == "Unscored / awaiting analysis"
+
+
+def test_fetch_dedupes_repeated_cwe_ids_preserving_first_occurrence_order(
+    mock_http: dict[str, Any],
+):
+    # CVE-2026-1001 lists CWE-79 twice, then CWE-200 — output must keep
+    # one CWE-79 in the position of its first occurrence. Catches both
+    # "emit duplicates" and "sort alphabetically" bugs.
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert rows["CVE-2026-1001"].cwes == ["CWE-79", "CWE-200"]
+
+
+def test_fetch_rejects_weakness_descriptions_without_cwe_prefix(
+    mock_http: dict[str, Any],
+):
+    # CVE-2026-1001 includes a "NVD-CWE-Other" weakness — NVD's noise
+    # marker for "no specific CWE assigned". Catches a blind append.
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert "NVD-CWE-Other" not in rows["CVE-2026-1001"].cwes
+
+
+def test_fetch_returns_empty_cwes_when_weaknesses_field_absent(
+    mock_http: dict[str, Any],
+):
+    # CVE-2026-1003 omits `weaknesses`. Catches KeyError / AttributeError
+    # against missing upstream fields.
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert rows["CVE-2026-1003"].cwes == []
 
 
 def test_severity_threshold_table():

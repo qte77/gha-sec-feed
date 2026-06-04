@@ -12,6 +12,12 @@ behaviour — keeps the cron PR diff tractable across the refactor.
 :data:`FEED_SCHEMA_VERSION` is the one authoritative schema version
 string — fetchers and the CLI both import it from here so a contract
 bump touches one constant rather than three.
+
+Schema 1.1.0 adds ``description`` and ``cwes`` to :class:`FeedRow` so
+consumers can filter by free-text keywords and by weakness category
+without re-fetching upstream. Both fields default to empty values, so
+v1.0.0 callers stay valid and v1.0.0 consumers reading v1.1.0 rows see
+extra keys they can safely ignore.
 """
 
 from __future__ import annotations
@@ -20,7 +26,7 @@ from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-FEED_SCHEMA_VERSION: Final[str] = "1.0.0"
+FEED_SCHEMA_VERSION: Final[str] = "1.1.0"
 
 Severity = Literal["critical", "high", "medium", "low", "unknown"]
 SourceSlug = Literal["nvd", "cisa-kev"]
@@ -48,6 +54,8 @@ class FeedRow(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     cvss: Annotated[float, Field(ge=0.0, le=10.0)] | None
+    cwes: list[str] = []
+    description: str = ""
     epss: Annotated[float, Field(ge=0.0, le=1.0)] | None
     id: str
     kev: bool

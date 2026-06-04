@@ -20,11 +20,30 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated, Any
 
-from pydantic import Field, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BeforeValidator, Field, SecretStr
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from gha_sec_feed import __version__
+from gha_sec_feed.models import Severity
+
+
+def _parse_csv(value: Any) -> Any:
+    """Parse a CSV string into a list, stripping whitespace and empties.
+
+    The workflow_call surface passes inputs as plain strings, so list
+    knobs accept ``"github,docker"`` rather than the default
+    pydantic-settings JSON form ``'["github","docker"]'``. ``NoDecode``
+    on the type alias suppresses pydantic-settings' eager JSON parse so
+    the raw env string reaches this validator unchanged.
+    """
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return value
+
+
+_CsvList = Annotated[list[str], NoDecode, BeforeValidator(_parse_csv)]
 
 
 class AppSettings(BaseSettings):
@@ -77,6 +96,35 @@ class AppSettings(BaseSettings):
         description=(
             "Outbound User-Agent. Override for forks; the default identifies "
             "the upstream repository in line with NVD's polite-client guidance."
+        ),
+    )
+
+    severity_min: Severity = Field(
+        default="unknown",
+        description=(
+            "Minimum severity rank admitted by the filter. Default 'unknown' "
+            "is the no-filter sentinel (every row passes the severity check)."
+        ),
+    )
+
+    kev_only: bool = Field(
+        default=False,
+        description="If true, keep only rows with kev=True; default keeps every row.",
+    )
+
+    cwe_include: _CsvList = Field(
+        default_factory=list,
+        description=(
+            "CSV list of CWE identifiers; a row passes if it shares at least "
+            "one CWE (case-insensitive). Empty list = no CWE filter."
+        ),
+    )
+
+    keywords: _CsvList = Field(
+        default_factory=list,
+        description=(
+            "CSV list of keywords matched case-insensitively against id + "
+            "description. Empty list = no keyword filter."
         ),
     )
 
