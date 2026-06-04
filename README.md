@@ -43,10 +43,49 @@ Per-row C1 shape:
 | `epss` | Float 0.0-1.0; `null` if not in EPSS (always `null` in the floor) |
 | `kev` | Boolean — is this CVE in the CISA KEV catalog? |
 | `refs` | Array of authoritative URLs (≥ 1) |
-| `schema_version` | `"1.0.0"` — bumped only on breaking changes |
+| `description` | Free-text summary (English; v1.1.0+) |
+| `cwes` | Array of CWE-prefixed identifiers (v1.1.0+) |
+| `schema_version` | `"1.1.0"` — additive bumps stay backwards-compatible |
 
 `data/feed-meta.json` ships sidecar metadata: `sources`, `last_run`,
 `schema_version`, `item_count`.
+
+## Use as a reusable workflow
+
+Downstream repos can produce their own filtered C1 feed by calling this
+workflow from their own `.github/workflows/`:
+
+```yaml
+name: sec-feed
+on:
+  schedule: [{ cron: '0 6 * * 1' }]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  update:
+    uses: qte77/gha-sec-feed/.github/workflows/update_feed.yaml@main
+    secrets: inherit
+    with:
+      keywords: 'kubernetes,nginx,traefik'   # CSV; empty = no filter
+      severity_min: 'high'                    # critical/high/medium/low/unknown
+      # kev_only: true                        # optional
+      # cwe_include: 'CWE-79,CWE-200'         # optional
+      # out_dir: 'data'                       # default
+```
+
+Each call writes `data/feed.jsonl` and `data/feed-meta.json` to the
+caller's repo and auto-merges a `chore(data)` PR with the refresh.
+
+## Showcase scope
+
+`data/feed.jsonl` on this repo is filtered with a fixed qte77-stack
+keyword set —
+`github,python,docker,npm,rust,pip,pypi,node,typescript,cargo,uv,httpx,pydantic,markdown,codeql` —
+to prove the filter on real CVEs. Consumers who want a canonical
+superset feed should invoke the reusable workflow with `keywords: ''`
+(producer-is-neutral default) and apply their own scope.
 
 ## Local development
 
