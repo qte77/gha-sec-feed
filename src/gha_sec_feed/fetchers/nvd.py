@@ -102,6 +102,17 @@ def fetch(since: str) -> list[FeedRow]:
     Returns:
         List of :class:`FeedRow`, one per ``vulnerabilities[].cve``.
     """
+    # KNOWN ISSUE #27: NVD CVE API v2 returns HTTP 404 for the format
+    # below as of 2026-06-04. The documented format (per
+    # https://nvd.nist.gov/developers/vulnerabilities, see `pubStartDate`)
+    # is `YYYY-MM-DDThh:mm:ss.000` — millisecond precision and **no Z**
+    # suffix. We currently send `...HH:MM:SSZ` for both `pubStartDate`
+    # (forwarded from the caller's `since` arg, formatted by
+    # `_iso_z`/`_default_since` in gha_sec_feed.__main__) and `pubEndDate`
+    # (the strftime call below). Both sites must move to the .000 form
+    # without Z. The same change also applies to the workflow's
+    # `Run producer` step in .github/workflows/update_feed.yaml where
+    # `since` is computed by `date -u -d '8 days ago' +%FT%TZ`.
     pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     url = f"{_ENDPOINT}?{urlencode({'pubStartDate': since, 'pubEndDate': pub_end})}"
     payload = loads(http.get(url))
