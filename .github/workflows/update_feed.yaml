@@ -103,6 +103,39 @@ jobs:
 
       - run: make install
 
+      - name: Diagnostic — probe NVD pubEndDate placement
+        run: |
+          set +e
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          NOW_1S=$(date -u -d '1 second ago' +%Y-%m-%dT%H:%M:%SZ)
+          NOW_1M=$(date -u -d '1 minute ago' +%Y-%m-%dT%H:%M:%SZ)
+          NOW_5M=$(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+          SINCE_7D=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          UA="http-client/0.2.0"
+          BASE="https://services.nvd.nist.gov/rest/json/cves/2.0"
+
+          probe() {
+            local label="$1" start="$2" end="$3"
+            echo "=== ${label}: pubStartDate=${start} pubEndDate=${end} ==="
+            local code
+            code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+              -G "${BASE}" \
+              --data-urlencode "pubStartDate=${start}" \
+              --data-urlencode "pubEndDate=${end}" \
+              -H "User-Agent: ${UA}" \
+              -H "Accept: application/json")
+            echo "HTTP ${code}"
+            head -c 400 /tmp/resp.txt; echo
+            echo
+            sleep 7
+          }
+
+          probe "control-2025-window"   "2025-12-15T00:00:00Z" "2025-12-22T00:00:00Z"
+          probe "2026-end-at-NOW"       "${SINCE_7D}"          "${NOW}"
+          probe "2026-end-NOW-minus-1s" "${SINCE_7D}"          "${NOW_1S}"
+          probe "2026-end-NOW-minus-1m" "${SINCE_7D}"          "${NOW_1M}"
+          probe "2026-end-NOW-minus-5m" "${SINCE_7D}"          "${NOW_5M}"
+
       - name: Run producer
         env:
           SINCE_OVERRIDE: ${{ inputs.since }}
