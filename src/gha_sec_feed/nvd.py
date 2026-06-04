@@ -1,4 +1,4 @@
-"""NVD CVE API v2 fetcher. Emits rows in the C1 contract shape.
+"""NVD CVE API v2 fetcher. Emits :class:`FeedRow` instances per the C1 contract.
 
 Endpoint: https://services.nvd.nist.gov/rest/json/cves/2.0
 
@@ -15,9 +15,9 @@ from typing import Any
 from urllib.parse import urlencode
 
 from gha_sec_feed import http
+from gha_sec_feed.models import FeedRow
 
 _ENDPOINT = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-_SCHEMA_VERSION = "1.0.0"
 
 
 def _severity(base_score: float | None) -> str:
@@ -49,30 +49,29 @@ def _extract_base_score(cve: dict[str, Any]) -> float | None:
     return metrics[0].get("cvssData", {}).get("baseScore")
 
 
-def _to_row(cve: dict[str, Any]) -> dict[str, Any]:
-    """Transform one NVD ``cve`` object into a C1 row."""
+def _to_row(cve: dict[str, Any]) -> FeedRow:
+    """Transform one NVD ``cve`` object into a :class:`FeedRow`."""
     base_score = _extract_base_score(cve)
-    return {
-        "id": cve["id"],
-        "source": "nvd",
-        "published": _normalize_published(cve["published"]),
-        "severity": _severity(base_score),
-        "cvss": base_score,
-        "epss": None,
-        "kev": False,
-        "refs": [ref["url"] for ref in cve.get("references", [])],
-        "schema_version": _SCHEMA_VERSION,
-    }
+    return FeedRow(
+        id=cve["id"],
+        source="nvd",
+        published=_normalize_published(cve["published"]),
+        severity=_severity(base_score),  # pyright: ignore[reportArgumentType]
+        cvss=base_score,
+        epss=None,
+        kev=False,
+        refs=[ref["url"] for ref in cve.get("references", [])],
+    )
 
 
-def fetch(since: str) -> list[dict[str, Any]]:
+def fetch(since: str) -> list[FeedRow]:
     """Fetch CVEs published since ``since`` (ISO-8601 Z-suffixed UTC).
 
     Args:
         since: Lower-bound publication timestamp, ``YYYY-MM-DDTHH:MM:SSZ``.
 
     Returns:
-        List of C1 rows, one per ``vulnerabilities[].cve`` in the response.
+        List of :class:`FeedRow`, one per ``vulnerabilities[].cve``.
     """
     pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     url = f"{_ENDPOINT}?{urlencode({'pubStartDate': since, 'pubEndDate': pub_end})}"

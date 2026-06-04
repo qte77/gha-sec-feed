@@ -5,6 +5,10 @@ sidecar (:class:`FeedMeta`), and the per-source manifest entries
 (:class:`SourceEntry`). All three are frozen + ``extra="forbid"`` so a
 typo at construction site fails loudly.
 
+Field order is alphabetical so ``model_dump_json()`` produces wire-format
+output byte-identical to the pre-Pydantic ``json.dumps(..., sort_keys=True)``
+behaviour — keeps the cron PR diff tractable across the refactor.
+
 :data:`FEED_SCHEMA_VERSION` is the one authoritative schema version
 string — fetchers and the CLI both import it from here so a contract
 bump touches one constant rather than three.
@@ -27,31 +31,31 @@ class SourceEntry(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    attribution: str
     id: SourceSlug
+    license: str
     name: str
     url: str
-    license: str
-    attribution: str
 
 
 class FeedRow(BaseModel):
     """One row of ``data/feed.jsonl`` — the C1 contract row shape.
 
-    ``strict=False`` to accept integer ``cvss`` values from NVD (e.g.,
-    ``baseScore: 10`` instead of ``10.0``); range constraints still hold.
+    ``strict=False`` (default) so NVD's occasional integer ``baseScore``
+    coerces to float cleanly; range constraints still hold.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    id: str
-    source: SourceSlug
-    published: str  # ISO-8601 Z UTC
-    severity: Severity
     cvss: Annotated[float, Field(ge=0.0, le=10.0)] | None
     epss: Annotated[float, Field(ge=0.0, le=1.0)] | None
+    id: str
     kev: bool
+    published: str  # ISO-8601 Z UTC
     refs: Annotated[list[str], Field(min_length=1)]
     schema_version: str = FEED_SCHEMA_VERSION
+    severity: Severity
+    source: SourceSlug
 
 
 class FeedMeta(BaseModel):
@@ -59,8 +63,8 @@ class FeedMeta(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    sources: list[SourceEntry]
+    item_count: Annotated[int, Field(ge=0)]
     last_run: str  # ISO-8601 Z UTC
     schema_version: str
-    item_count: Annotated[int, Field(ge=0)]
+    sources: list[SourceEntry]
     tool_version: str

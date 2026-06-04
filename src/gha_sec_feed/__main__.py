@@ -14,31 +14,27 @@ from __future__ import annotations
 from argparse import ArgumentParser
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
 
 from gha_sec_feed import __version__, kev, nvd, writer
-
-_SCHEMA_VERSION = "1.0.0"
+from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedMeta, FeedRow, SourceEntry
 
 # Per-source manifest emitted into feed-meta.json sources[]. Adding a new
 # source means appending an entry here and a fetcher; see docs/SOURCES.md.
-_SOURCES_MANIFEST: list[dict[str, str]] = [
-    {
-        "id": "nvd",
-        "name": "National Vulnerability Database (NVD)",
-        "url": "https://nvd.nist.gov/",
-        "license": "US-Government-Work",
-        "attribution": (
-            "This product uses the NVD API but is not endorsed or certified by the NVD."
-        ),
-    },
-    {
-        "id": "cisa-kev",
-        "name": "CISA Known Exploited Vulnerabilities Catalog",
-        "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
-        "license": "CC0-1.0",
-        "attribution": "CISA KEV Catalog — public domain, no endorsement implied.",
-    },
+_SOURCES_MANIFEST: list[SourceEntry] = [
+    SourceEntry(
+        id="nvd",
+        name="National Vulnerability Database (NVD)",
+        url="https://nvd.nist.gov/",
+        license="US-Government-Work",
+        attribution=("This product uses the NVD API but is not endorsed or certified by the NVD."),
+    ),
+    SourceEntry(
+        id="cisa-kev",
+        name="CISA Known Exploited Vulnerabilities Catalog",
+        url="https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+        license="CC0-1.0",
+        attribution="CISA KEV Catalog — public domain, no endorsement implied.",
+    ),
 ]
 
 
@@ -52,32 +48,31 @@ def _default_since() -> str:
     return _iso_z(datetime.now(timezone.utc) - timedelta(days=7))
 
 
-def _merge(nvd_rows: list[dict[str, Any]], kev_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _merge(nvd_rows: list[FeedRow], kev_rows: list[FeedRow]) -> list[FeedRow]:
     """Dedupe by ``id``; sort by ``published`` descending.
 
     KEV's contribution is the ``kev=True`` flag; NVD's contribution is the
     CVSS + severity. On overlap, the NVD row wins for every field except
-    ``kev``, which is set to ``True``.
+    ``kev``, which is set to ``True`` via ``model_copy``.
     """
-    by_id: dict[str, dict[str, Any]] = {row["id"]: row for row in nvd_rows}
+    by_id: dict[str, FeedRow] = {row.id: row for row in nvd_rows}
     for k_row in kev_rows:
-        cve_id = k_row["id"]
-        if cve_id in by_id:
-            by_id[cve_id] = {**by_id[cve_id], "kev": True}
+        if k_row.id in by_id:
+            by_id[k_row.id] = by_id[k_row.id].model_copy(update={"kev": True})
         else:
-            by_id[cve_id] = k_row
-    return sorted(by_id.values(), key=lambda r: r["published"], reverse=True)
+            by_id[k_row.id] = k_row
+    return sorted(by_id.values(), key=lambda r: r.published, reverse=True)
 
 
-def _build_meta(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _build_meta(rows: list[FeedRow]) -> FeedMeta:
     """Assemble the ``feed-meta.json`` payload."""
-    return {
-        "sources": _SOURCES_MANIFEST,
-        "last_run": _iso_z(datetime.now(timezone.utc)),
-        "schema_version": _SCHEMA_VERSION,
-        "item_count": len(rows),
-        "tool_version": __version__,
-    }
+    return FeedMeta(
+        item_count=len(rows),
+        last_run=_iso_z(datetime.now(timezone.utc)),
+        schema_version=FEED_SCHEMA_VERSION,
+        sources=_SOURCES_MANIFEST,
+        tool_version=__version__,
+    )
 
 
 def main(argv: list[str] | None = None) -> None:

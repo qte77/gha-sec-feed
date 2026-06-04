@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from json import dumps
 from os import replace
 from pathlib import Path
-from typing import Any
+
+from gha_sec_feed.models import FeedMeta, FeedRow
 
 _JSONL_NAME = "feed.jsonl"
 _META_NAME = "feed-meta.json"
@@ -27,17 +27,18 @@ def _write_text_atomic(path: Path, content: str) -> None:
         raise
 
 
-def write_feed(rows: list[dict[str, Any]], meta: dict[str, Any], out_dir: Path) -> None:
+def write_feed(rows: list[FeedRow], meta: FeedMeta, out_dir: Path) -> None:
     """Write ``rows`` as JSONL and ``meta`` as JSON to ``out_dir`` atomically.
 
     Both files are produced via tempfile + ``os.replace``: either both writes
     succeed end-to-end, or any partially-written tempfile is removed and the
     previous file (if any) is left intact.
 
-    Output is deterministic: ``dumps(..., sort_keys=True)`` for both, so
-    identical inputs produce byte-identical outputs across runs.
+    Output is deterministic: Pydantic ``model_dump_json()`` follows declared
+    field order, and the models declare fields alphabetically — so identical
+    inputs produce byte-identical outputs across runs.
     """
-    rows_text = "".join(dumps(row, sort_keys=True) + "\n" for row in rows)
-    meta_text = dumps(meta, sort_keys=True, indent=2) + "\n"
+    rows_text = "".join(row.model_dump_json() + "\n" for row in rows)
+    meta_text = meta.model_dump_json(indent=2) + "\n"
     _write_text_atomic(out_dir / _JSONL_NAME, rows_text)
     _write_text_atomic(out_dir / _META_NAME, meta_text)
