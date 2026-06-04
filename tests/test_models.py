@@ -28,6 +28,20 @@ def _valid_row(**overrides):
     return base
 
 
+def test_feed_row_description_defaults_to_empty_string():
+    # 1.1.0 additive field. Default must be `""` so v1.0.0 callers that
+    # never pass `description` remain valid against the v1.1.0 schema.
+    row = FeedRow(**_valid_row())
+    assert row.description == ""
+
+
+def test_feed_row_cwes_defaults_to_empty_list():
+    # 1.1.0 additive field. Default must be `[]` (not `None`) so consumers
+    # can iterate without a null check, and v1.0.0 callers stay valid.
+    row = FeedRow(**_valid_row())
+    assert row.cwes == []
+
+
 def test_feed_row_default_schema_version_matches_module_constant():
     # Catches default-vs-constant desync (someone bumps the constant but
     # forgets the model default, or vice versa). The literal value lives

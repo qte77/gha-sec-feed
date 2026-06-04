@@ -10,7 +10,7 @@ import pytest
 
 from gha_sec_feed import __main__ as cli
 from gha_sec_feed.__main__ import _SOURCES_MANIFEST, _build_meta, _default_since, _merge, main
-from gha_sec_feed.models import FeedMeta, FeedRow
+from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedMeta, FeedRow
 
 
 def _row(
@@ -85,7 +85,7 @@ def test_build_meta_includes_sources_manifest_with_nvd_attribution():
     assert isinstance(meta, FeedMeta)
     assert meta.sources == _SOURCES_MANIFEST
     assert meta.item_count == 2
-    assert meta.schema_version == "1.0.0"
+    assert meta.schema_version == FEED_SCHEMA_VERSION
     assert meta.tool_version  # non-empty
     assert meta.last_run.endswith("Z")
 

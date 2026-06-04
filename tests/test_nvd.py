@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from gha_sec_feed.fetchers.nvd import _severity, fetch
-from gha_sec_feed.models import FeedRow
+from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedRow
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nvd_sample.json"
 SINCE = "2026-05-01T00:00:00Z"
@@ -47,7 +47,7 @@ def test_fetch_emits_c1_static_fields_on_every_row(mock_http: dict[str, Any]):
         assert row.source == "nvd"
         assert row.kev is False
         assert row.epss is None
-        assert row.schema_version == "1.0.0"
+        assert row.schema_version == FEED_SCHEMA_VERSION
 
 
 def test_fetch_maps_severity_by_threshold(mock_http: dict[str, Any]):

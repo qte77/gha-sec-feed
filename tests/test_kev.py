@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from gha_sec_feed.fetchers.kev import _CATALOG_URL, fetch
-from gha_sec_feed.models import FeedRow
+from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedRow
 
 FIXTURE = Path(__file__).parent / "fixtures" / "kev_sample.json"
 
@@ -48,7 +48,7 @@ def test_fetch_emits_c1_static_fields_on_every_row(mock_http: dict[str, Any]):
         assert row.severity == "unknown"
         assert row.cvss is None
         assert row.epss is None
-        assert row.schema_version == "1.0.0"
+        assert row.schema_version == FEED_SCHEMA_VERSION
 
 
 def test_fetch_normalizes_date_added_to_iso_z_midnight(mock_http: dict[str, Any]):
