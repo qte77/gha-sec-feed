@@ -92,10 +92,11 @@ class AppSettings(BaseSettings):
     )
 
     user_agent: str = Field(
-        default=f"gha-sec-feed/{__version__} (+https://github.com/qte77/gha-sec-feed)",
+        default=f"http-client/{__version__}",
         description=(
-            "Outbound User-Agent. Override for forks; the default identifies "
-            "the upstream repository in line with NVD's polite-client guidance."
+            "Outbound User-Agent. Default carries no project identity so the "
+            "transport layer doesn't speak for the project. Forks set this "
+            "explicitly via GSF_USER_AGENT for polite-client attribution."
         ),
     )
 
