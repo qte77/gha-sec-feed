@@ -108,6 +108,14 @@ jobs:
           SINCE_OVERRIDE: ${{ inputs.since }}
         run: |
           set -euo pipefail
+          # KNOWN ISSUE #27: NVD CVE API v2 returns HTTP 404 for the
+          # `+%FT%TZ` format below as of 2026-06-04. NVD's docs at
+          # https://nvd.nist.gov/developers/vulnerabilities require
+          # `YYYY-MM-DDThh:mm:ss.000` (millisecond precision, no Z).
+          # The producer's gha_sec_feed.fetchers.nvd.fetch() function
+          # carries the same bug on `pubEndDate` and must be updated in
+          # the same commit. Until then, this workflow run will fail at
+          # the producer step. See issue #27 for the full diagnosis.
           since="${SINCE_OVERRIDE:-$(date -u -d '8 days ago' +%FT%TZ)}"
           echo "Fetching since: $since"
           echo "Filters: severity_min=$GSF_SEVERITY_MIN, kev_only=$GSF_KEV_ONLY, cwe_include=${GSF_CWE_INCLUDE:-(empty)}, keywords=${GSF_KEYWORDS:-(empty)}"
