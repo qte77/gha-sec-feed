@@ -20,6 +20,10 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch):
         "GSF_HTTP_TIMEOUT",
         "GSF_HTTP_MAX_RETRIES",
         "GSF_USER_AGENT",
+        "GSF_SEVERITY_MIN",
+        "GSF_KEV_ONLY",
+        "GSF_CWE_INCLUDE",
+        "GSF_KEYWORDS",
     ):
         monkeypatch.delenv(var, raising=False)
     reset_settings_cache()
@@ -104,3 +108,48 @@ def test_app_settings_is_frozen():
     s = AppSettings()
     with pytest.raises(ValidationError, match="frozen"):
         s.since_days = 14
+
+
+def test_filter_knobs_default_to_no_filter():
+    # Producer-is-neutral default: a deployment that sets no filter env
+    # vars gets the full feed (preserving v0.1.0 behaviour). Catches an
+    # accidental tightening of any default.
+    s = AppSettings()
+    assert s.severity_min == "unknown"
+    assert s.kev_only is False
+    assert s.cwe_include == []
+    assert s.keywords == []
+
+
+def test_filter_knobs_parsed_from_env_vars(monkeypatch: pytest.MonkeyPatch):
+    # The workflow_call surface passes inputs as plain strings, so CSV
+    # parsing must work for the list-typed knobs. Catches the default
+    # pydantic-settings behaviour of requiring JSON for list[str].
+    monkeypatch.setenv("GSF_SEVERITY_MIN", "high")
+    monkeypatch.setenv("GSF_KEV_ONLY", "true")
+    monkeypatch.setenv("GSF_CWE_INCLUDE", "CWE-79,CWE-200")
+    monkeypatch.setenv("GSF_KEYWORDS", "github,docker,rust")
+
+    s = AppSettings()
+    assert s.severity_min == "high"
+    assert s.kev_only is True
+    assert s.cwe_include == ["CWE-79", "CWE-200"]
+    assert s.keywords == ["github", "docker", "rust"]
+
+
+def test_keywords_csv_strips_whitespace_and_drops_empty_segments(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # Workflow YAML may emit `keywords: "github, docker , "` after YAML
+    # input templating; the parser must normalise. Catches a naive
+    # `str.split(",")` impl that leaves whitespace and empty entries.
+    monkeypatch.setenv("GSF_KEYWORDS", "github, docker ,, rust ,")
+    s = AppSettings()
+    assert s.keywords == ["github", "docker", "rust"]
+
+
+def test_severity_min_rejects_invalid_literal(monkeypatch: pytest.MonkeyPatch):
+    # Catches accidentally widening the Literal type or omitting it.
+    monkeypatch.setenv("GSF_SEVERITY_MIN", "catastrophic")
+    with pytest.raises(ValidationError, match="severity_min"):
+        AppSettings()
