@@ -131,9 +131,34 @@ jobs:
           }
 
           SINCE_8D=$(date -u -d '8 days ago' +%Y-%m-%dT%H:%M:%SZ)
-          probe "control-2025-window"   "2025-12-15T00:00:00Z" "2025-12-22T00:00:00Z"
-          probe "2026-7d-range"         "${SINCE_7D}"          "${NOW}"
-          probe "2026-8d-range"         "${SINCE_8D}"          "${NOW}"
+          probe "curl 2026-7d-range"   "${SINCE_7D}" "${NOW}"
+          probe "curl 2026-8d-range"   "${SINCE_8D}" "${NOW}"
+
+      - name: Diagnostic — probe NVD with python-httpx (isolate library)
+        run: |
+          set +e
+          python3 -m pip install --quiet 'httpx>=0.27'
+          SINCE_7D=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          python3 - <<PY
+          import httpx, json, sys
+          url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+          params = {"pubStartDate": "$SINCE_7D", "pubEndDate": "$NOW"}
+          headers = {"User-Agent": "http-client/0.2.0", "Accept": "application/json"}
+          print(f"=== httpx default ===")
+          r = httpx.get(url, params=params, headers=headers, timeout=30.0)
+          print(f"HTTP {r.status_code}")
+          print(f"req headers sent: {dict(r.request.headers)}")
+          print(f"resp headers: {dict(r.headers)}")
+          print(f"body (first 400): {r.text[:400]}")
+          print()
+          print(f"=== httpx no Accept-Encoding ===")
+          h2 = dict(headers, **{"Accept-Encoding": "identity"})
+          r2 = httpx.get(url, params=params, headers=h2, timeout=30.0)
+          print(f"HTTP {r2.status_code}")
+          print(f"req headers sent: {dict(r2.request.headers)}")
+          print(f"body (first 400): {r2.text[:400]}")
+          PY
 
       - name: Run producer
         env:
