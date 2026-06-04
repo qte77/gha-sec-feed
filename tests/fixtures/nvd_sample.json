@@ -11,13 +11,19 @@
         "id": "CVE-2026-1001",
         "published": "2026-05-30T12:00:00.000",
         "descriptions": [
-          {"lang": "en", "value": "Critical RCE in test-product"}
+          {"lang": "en", "value": "GitHub Actions workflow RCE in test-product"}
         ],
         "metrics": {
           "cvssMetricV31": [
             {"cvssData": {"baseScore": 9.8}}
           ]
         },
+        "weaknesses": [
+          {"description": [{"lang": "en", "value": "CWE-79"}]},
+          {"description": [{"lang": "en", "value": "CWE-79"}]},
+          {"description": [{"lang": "en", "value": "NVD-CWE-Other"}]},
+          {"description": [{"lang": "en", "value": "CWE-200"}]}
+        ],
         "references": [
           {"url": "https://nvd.nist.gov/vuln/detail/CVE-2026-1001"},
           {"url": "https://example.com/advisory/CVE-2026-1001"}
@@ -29,6 +35,7 @@
         "id": "CVE-2026-1002",
         "published": "2026-05-29T08:00:00.000",
         "descriptions": [
+          {"lang": "es", "value": "Divulgacion de gravedad media"},
           {"lang": "en", "value": "Medium severity disclosure"}
         ],
         "metrics": {
@@ -36,6 +43,9 @@
             {"cvssData": {"baseScore": 5.5}}
           ]
         },
+        "weaknesses": [
+          {"description": [{"lang": "en", "value": "CWE-200"}]}
+        ],
         "references": [
           {"url": "https://nvd.nist.gov/vuln/detail/CVE-2026-1002"}
         ]
