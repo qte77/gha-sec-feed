@@ -77,7 +77,11 @@ def test_get_returns_response_body():
     assert get(NVD_URL, _transport=_mock(handler)) == b"hello"
 
 
-def test_get_injects_default_identity_user_agent():
+def test_get_default_user_agent_omits_project_identity():
+    # The auto-injected default must not name the upstream project or
+    # link back to its GitHub URL — that's caller identity, not
+    # transport. Forks / downstream callers set GSF_USER_AGENT to
+    # identify themselves if they choose.
     captured: dict[str, str] = {}
 
     def handler(req: httpx.Request) -> httpx.Response:
@@ -86,8 +90,10 @@ def test_get_injects_default_identity_user_agent():
 
     get(NVD_URL, _transport=_mock(handler))
     ua = captured["user-agent"]
-    assert "gha-sec-feed/" in ua
-    assert "github.com/qte77/gha-sec-feed" in ua
+    assert "gha-sec-feed" not in ua
+    assert "qte77" not in ua
+    assert "github.com" not in ua
+    assert len(ua) > 0
 
 
 def test_get_user_agent_from_settings_env_override(monkeypatch: pytest.MonkeyPatch):

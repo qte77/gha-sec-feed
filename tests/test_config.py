@@ -38,8 +38,12 @@ def test_defaults_when_no_env_vars_set():
     assert s.since_days == 7
     assert s.http_timeout == 30.0
     assert s.http_max_retries == 3
-    assert "gha-sec-feed/" in s.user_agent
-    assert "github.com/qte77/gha-sec-feed" in s.user_agent
+    # Default User-Agent carries no project identity — forks override
+    # via GSF_USER_AGENT if they want polite-client attribution.
+    assert "gha-sec-feed" not in s.user_agent
+    assert "qte77" not in s.user_agent
+    assert "github.com" not in s.user_agent
+    assert len(s.user_agent) > 0
 
 
 def test_nvd_api_key_read_from_unprefixed_env_var(monkeypatch: pytest.MonkeyPatch):

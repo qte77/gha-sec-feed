@@ -41,22 +41,6 @@ def _normalize_published(value: str) -> str:
     return value.split(".", 1)[0].rstrip("Z") + "Z"
 
 
-def _to_nvd_timestamp(iso: str) -> str:
-    """Reformat any ISO-style timestamp to NVD's required millisecond form.
-
-    NVD CVE API v2 requires ``YYYY-MM-DDThh:mm:ss.000`` for the
-    ``pubStartDate`` and ``pubEndDate`` query params — millisecond
-    precision and no trailing ``Z``. The Z-suffixed ISO form that the
-    rest of this codebase uses returns HTTP 404. Accept any reasonable
-    ISO input (Z-suffixed, fractional seconds present or absent) and
-    output the canonical NVD shape.
-
-    See https://nvd.nist.gov/developers/vulnerabilities (``pubStartDate``).
-    """
-    base = iso.split(".", 1)[0].rstrip("Z")
-    return f"{base}.000"
-
-
 def _extract_base_score(cve: dict[str, Any]) -> float | None:
     """Pull a CVSS v3.1 ``baseScore`` if present; otherwise ``None``."""
     metrics = cve.get("metrics", {}).get("cvssMetricV31") or []
@@ -118,8 +102,11 @@ def fetch(since: str) -> list[FeedRow]:
     Returns:
         List of :class:`FeedRow`, one per ``vulnerabilities[].cve``.
     """
-    pub_start = _to_nvd_timestamp(since)
-    pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000")
-    url = f"{_ENDPOINT}?{urlencode({'pubStartDate': pub_start, 'pubEndDate': pub_end})}"
+    # NVD CVE API v2 accepts the ISO-8601 Z form (no millisecond suffix)
+    # in practice — empirically verified by a curl probe alongside the
+    # producer at the same minute (#27). NVD's developer docs document
+    # the `.000` form, but the live API returns HTTP 404 for it.
+    pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    url = f"{_ENDPOINT}?{urlencode({'pubStartDate': since, 'pubEndDate': pub_end})}"
     payload = loads(http.get(url))
     return [_to_row(item["cve"]) for item in payload.get("vulnerabilities", [])]
