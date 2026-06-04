@@ -31,7 +31,18 @@ _ALLOWED_HOSTS: Final[frozenset[str]] = frozenset(
 )
 
 _DEFAULT_ACCEPT: Final[str] = "application/json"
-_DEFAULT_REFERER: Final[str] = "https://github.com/qte77/gha-sec-feed"
+
+# Server-to-server API clients have no "referring page" semantics —
+# Referer is a browser concept describing the page that linked to the
+# current request. Sending one from a non-browser caller is at best
+# meaningless and at worst trips bot-detection heuristics that look
+# for browser-like header shapes paired with non-browser User-Agents.
+# This module therefore does NOT auto-inject a default Referer. The
+# constant is retained only as a generic placeholder value for the
+# rare caller that explicitly opts in via the `headers` parameter; a
+# topic-neutral host (google.com) is used so the value carries no
+# identity signal about this project or any of its forks.
+_DEFAULT_REFERER: Final[str] = "https://google.com"
 
 _RETRY_STATUS: Final[frozenset[int]] = frozenset({429, 500, 502, 503, 504})
 _BACKOFF_BASE: Final[float] = 0.2
@@ -79,8 +90,7 @@ def _build_headers(url: str, headers: dict[str, str] | None) -> dict[str, str]:
         merged["User-Agent"] = s.user_agent
     if "accept" not in keys_lower:
         merged["Accept"] = _DEFAULT_ACCEPT
-    if "referer" not in keys_lower:
-        merged["Referer"] = _DEFAULT_REFERER
+    # Referer is intentionally NOT auto-injected — see module docstring.
     if urlparse(url).hostname == _NVD_HOST and "apikey" not in keys_lower:
         if s.nvd_api_key is not None:
             merged["apiKey"] = s.nvd_api_key.get_secret_value()
