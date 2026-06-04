@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from gha_sec_feed.models import FeedRow
 from gha_sec_feed.nvd import _severity, fetch
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nvd_sample.json"
@@ -34,64 +35,53 @@ def test_fetch_calls_http_with_pub_start_date_from_since(mock_http: dict[str, An
     assert mock_http["url"].startswith("https://services.nvd.nist.gov/rest/json/cves/2.0")
 
 
-def test_fetch_returns_one_row_per_vulnerability(mock_http: dict[str, Any]):
+def test_fetch_returns_one_feedrow_per_vulnerability(mock_http: dict[str, Any]):
     rows = fetch(SINCE)
     assert len(rows) == 3
-    assert [r["id"] for r in rows] == ["CVE-2026-1001", "CVE-2026-1002", "CVE-2026-1003"]
+    assert all(isinstance(r, FeedRow) for r in rows)
+    assert [r.id for r in rows] == ["CVE-2026-1001", "CVE-2026-1002", "CVE-2026-1003"]
 
 
 def test_fetch_emits_c1_static_fields_on_every_row(mock_http: dict[str, Any]):
-    expected_keys = {
-        "id",
-        "source",
-        "published",
-        "severity",
-        "cvss",
-        "epss",
-        "kev",
-        "refs",
-        "schema_version",
-    }
     for row in fetch(SINCE):
-        assert set(row.keys()) == expected_keys
-        assert row["source"] == "nvd"
-        assert row["kev"] is False
-        assert row["epss"] is None
-        assert row["schema_version"] == "1.0.0"
+        assert row.source == "nvd"
+        assert row.kev is False
+        assert row.epss is None
+        assert row.schema_version == "1.0.0"
 
 
 def test_fetch_maps_severity_by_threshold(mock_http: dict[str, Any]):
-    rows = {r["id"]: r for r in fetch(SINCE)}
-    assert rows["CVE-2026-1001"]["severity"] == "critical"  # 9.8
-    assert rows["CVE-2026-1002"]["severity"] == "medium"  # 5.5
-    assert rows["CVE-2026-1003"]["severity"] == "unknown"  # no metrics
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert rows["CVE-2026-1001"].severity == "critical"  # 9.8
+    assert rows["CVE-2026-1002"].severity == "medium"  # 5.5
+    assert rows["CVE-2026-1003"].severity == "unknown"  # no metrics
 
 
 def test_fetch_extracts_cvss_or_none_when_missing(mock_http: dict[str, Any]):
-    rows = {r["id"]: r for r in fetch(SINCE)}
-    assert rows["CVE-2026-1001"]["cvss"] == 9.8
-    assert rows["CVE-2026-1002"]["cvss"] == 5.5
-    assert rows["CVE-2026-1003"]["cvss"] is None
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert rows["CVE-2026-1001"].cvss == 9.8
+    assert rows["CVE-2026-1002"].cvss == 5.5
+    assert rows["CVE-2026-1003"].cvss is None
 
 
 def test_fetch_extracts_all_reference_urls(mock_http: dict[str, Any]):
-    rows = {r["id"]: r for r in fetch(SINCE)}
-    assert rows["CVE-2026-1001"]["refs"] == [
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert rows["CVE-2026-1001"].refs == [
         "https://nvd.nist.gov/vuln/detail/CVE-2026-1001",
         "https://example.com/advisory/CVE-2026-1001",
     ]
-    assert rows["CVE-2026-1002"]["refs"] == [
+    assert rows["CVE-2026-1002"].refs == [
         "https://nvd.nist.gov/vuln/detail/CVE-2026-1002",
     ]
 
 
 def test_fetch_normalizes_published_to_iso_z_no_microseconds(mock_http: dict[str, Any]):
-    rows = {r["id"]: r for r in fetch(SINCE)}
+    rows = {r.id: r for r in fetch(SINCE)}
     # NVD ships "2026-05-30T12:00:00.000" — C1 requires "...T...:00Z"
-    assert rows["CVE-2026-1001"]["published"] == "2026-05-30T12:00:00Z"
+    assert rows["CVE-2026-1001"].published == "2026-05-30T12:00:00Z"
     for row in rows.values():
-        assert row["published"].endswith("Z")
-        assert "." not in row["published"]
+        assert row.published.endswith("Z")
+        assert "." not in row.published
 
 
 def test_severity_threshold_table():

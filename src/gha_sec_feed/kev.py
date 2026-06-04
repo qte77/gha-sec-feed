@@ -10,10 +10,10 @@ from json import loads
 from typing import Any
 
 from gha_sec_feed import http
+from gha_sec_feed.models import FeedRow
 
 _ENDPOINT = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 _CATALOG_URL = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
-_SCHEMA_VERSION = "1.0.0"
 
 
 def _refs(notes: str) -> list[str]:
@@ -28,23 +28,22 @@ def _refs(notes: str) -> list[str]:
     return [_CATALOG_URL]
 
 
-def _to_row(entry: dict[str, Any]) -> dict[str, Any]:
-    """Transform one KEV ``vulnerabilities[]`` entry into a C1 row."""
-    return {
-        "id": entry["cveID"],
-        "source": "cisa-kev",
-        "published": f"{entry['dateAdded']}T00:00:00Z",
-        "severity": "unknown",
-        "cvss": None,
-        "epss": None,
-        "kev": True,
-        "refs": _refs(entry.get("notes", "")),
-        "schema_version": _SCHEMA_VERSION,
-    }
+def _to_row(entry: dict[str, Any]) -> FeedRow:
+    """Transform one KEV ``vulnerabilities[]`` entry into a :class:`FeedRow`."""
+    return FeedRow(
+        id=entry["cveID"],
+        source="cisa-kev",
+        published=f"{entry['dateAdded']}T00:00:00Z",
+        severity="unknown",
+        cvss=None,
+        epss=None,
+        kev=True,
+        refs=_refs(entry.get("notes", "")),
+    )
 
 
-def fetch() -> list[dict[str, Any]]:
-    """Fetch the full KEV catalog and return C1 rows.
+def fetch() -> list[FeedRow]:
+    """Fetch the full KEV catalog and return :class:`FeedRow` instances.
 
     Returns:
         List of C1 rows, one per ``vulnerabilities[]`` entry in the catalog.

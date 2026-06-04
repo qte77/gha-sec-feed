@@ -5,18 +5,23 @@ allowlist (:data:`_ALLOWED_HOSTS`) is the choke point: anything not on
 the list raises :class:`ValueError` at the validator, before any socket
 is opened. The pattern is borrowed from
 ``qte77/gha-rxiv-feed-action/src/fetchers/common.py``.
+
+Tunable knobs (User-Agent, timeout, retry budget, NVD API key) come from
+:class:`gha_sec_feed.config.AppSettings`. Security-critical invariants
+(allowlist, retryable status codes, backoff math) stay as code constants
+— an env var that adds an outbound host or silences the retry policy
+would be exactly the threat the allowlist defends against.
 """
 
 from __future__ import annotations
 
-from os import environ
 from time import sleep
 from typing import Final
 from urllib.parse import urlparse
 
 import httpx
 
-from . import __version__
+from gha_sec_feed.config import settings
 
 _ALLOWED_HOSTS: Final[frozenset[str]] = frozenset(
     {
@@ -25,12 +30,10 @@ _ALLOWED_HOSTS: Final[frozenset[str]] = frozenset(
     }
 )
 
-_DEFAULT_UA: Final[str] = f"gha-sec-feed/{__version__} (+https://github.com/qte77/gha-sec-feed)"
 _DEFAULT_ACCEPT: Final[str] = "application/json"
+_DEFAULT_REFERER: Final[str] = "https://github.com/qte77/gha-sec-feed"
 
 _RETRY_STATUS: Final[frozenset[int]] = frozenset({429, 500, 502, 503, 504})
-_DEFAULT_TIMEOUT: Final[float] = 30.0
-_DEFAULT_RETRIES: Final[int] = 3
 _BACKOFF_BASE: Final[float] = 0.2
 _BACKOFF_FACTOR: Final[float] = 2.0
 
@@ -63,17 +66,24 @@ def _validate_url(url: str) -> None:
 
 
 def _build_headers(url: str, headers: dict[str, str] | None) -> dict[str, str]:
-    """Merge caller headers with identity defaults + conditional NVD apiKey."""
+    """Merge caller headers with identity defaults + conditional NVD apiKey.
+
+    Defaults injected only when the caller has not already supplied the
+    same header (case-insensitive). NVD ``apiKey`` is added only for the
+    NVD host when ``NVD_API_KEY`` is set via :class:`AppSettings`.
+    """
+    s = settings()
     merged: dict[str, str] = dict(headers) if headers else {}
     keys_lower = {k.lower() for k in merged}
     if "user-agent" not in keys_lower:
-        merged["User-Agent"] = _DEFAULT_UA
+        merged["User-Agent"] = s.user_agent
     if "accept" not in keys_lower:
         merged["Accept"] = _DEFAULT_ACCEPT
+    if "referer" not in keys_lower:
+        merged["Referer"] = _DEFAULT_REFERER
     if urlparse(url).hostname == _NVD_HOST and "apikey" not in keys_lower:
-        nvd_key = environ.get("NVD_API_KEY")
-        if nvd_key:
-            merged["apiKey"] = nvd_key
+        if s.nvd_api_key is not None:
+            merged["apiKey"] = s.nvd_api_key.get_secret_value()
     return merged
 
 
@@ -92,8 +102,8 @@ def get(
     url: str,
     *,
     headers: dict[str, str] | None = None,
-    timeout: float = _DEFAULT_TIMEOUT,
-    max_retries: int = _DEFAULT_RETRIES,
+    timeout: float | None = None,
+    max_retries: int | None = None,
     _transport: httpx.BaseTransport | None = None,
 ) -> bytes:
     """Fetch ``url`` through the allowlisted HTTP client.
@@ -102,8 +112,10 @@ def get(
         url: HTTPS URL whose host is in :data:`_ALLOWED_HOSTS`.
         headers: Optional caller headers; merged with identity defaults.
             Caller-supplied keys win (case-insensitive).
-        timeout: Per-attempt timeout in seconds.
-        max_retries: Total attempts before raising.
+        timeout: Per-attempt timeout in seconds. Defaults to
+            ``AppSettings.http_timeout`` (30s).
+        max_retries: Total attempts before raising. Defaults to
+            ``AppSettings.http_max_retries`` (3).
         _transport: Test seam — production callers leave unset.
 
     Returns:
@@ -114,16 +126,19 @@ def get(
         RuntimeError: Non-retryable status, or retries exhausted.
     """
     _validate_url(url)
+    s = settings()
+    effective_timeout = s.http_timeout if timeout is None else timeout
+    effective_retries = s.http_max_retries if max_retries is None else max_retries
     merged_headers = _build_headers(url, headers)
     last_status: int | None = None
-    with httpx.Client(transport=_transport, timeout=timeout) as client:
-        for attempt in range(max_retries):
+    with httpx.Client(transport=_transport, timeout=effective_timeout) as client:
+        for attempt in range(effective_retries):
             resp = client.get(url, headers=merged_headers)
             if resp.status_code < 400:
                 return resp.content
             last_status = resp.status_code
             if resp.status_code not in _RETRY_STATUS:
                 raise RuntimeError(f"HTTP {resp.status_code} for {url}")
-            if attempt < max_retries - 1:
+            if attempt < effective_retries - 1:
                 _sleep(_retry_delay(resp, attempt))
-    raise RuntimeError(f"HTTP {last_status} after {max_retries} attempts: {url}")
+    raise RuntimeError(f"HTTP {last_status} after {effective_retries} attempts: {url}")
