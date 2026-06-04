@@ -1,4 +1,4 @@
-"""Tests for ``gha_sec_feed.kev`` — CISA KEV catalog fetcher."""
+"""Tests for ``gha_sec_feed.fetchers.kev`` — CISA KEV catalog fetcher."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from gha_sec_feed.kev import _CATALOG_URL, fetch
+from gha_sec_feed.fetchers.kev import _CATALOG_URL, fetch
 from gha_sec_feed.models import FeedRow
 
 FIXTURE = Path(__file__).parent / "fixtures" / "kev_sample.json"
@@ -22,7 +22,7 @@ def mock_http(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         captured["url"] = url
         return fixture_bytes
 
-    monkeypatch.setattr("gha_sec_feed.kev.http.get", fake_get)
+    monkeypatch.setattr("gha_sec_feed.fetchers.kev.http.get", fake_get)
     return captured
 
 
