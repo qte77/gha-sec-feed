@@ -151,3 +151,32 @@ def test_main_default_out_dir_is_data(monkeypatch: pytest.MonkeyPatch, tmp_path:
     main(["--since", "2026-05-01T00:00:00Z"])
 
     assert captured["out_dir"] == Path("./data")
+
+
+def test_main_applies_settings_driven_filter_before_writing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    # End-to-end: env-driven severity_min filter survives the merge and
+    # the dropped row is also absent from the meta count. Catches both
+    # "filter not wired in" and "meta built from pre-filter rows" bugs.
+    from gha_sec_feed.config import reset_settings_cache
+
+    nvd_rows = [
+        _row("CVE-PASS", severity="critical", cvss=9.8),
+        _row("CVE-DROP", severity="low", cvss=2.0),
+    ]
+    monkeypatch.setattr(cli.nvd, "fetch", lambda _since: nvd_rows)
+    monkeypatch.setattr(cli.kev, "fetch", lambda: [])
+    monkeypatch.setenv("GSF_SEVERITY_MIN", "high")
+    reset_settings_cache()
+    try:
+        main(["--out", str(tmp_path), "--since", "2026-05-01T00:00:00Z"])
+
+        jsonl = (tmp_path / "feed.jsonl").read_text(encoding="utf-8").splitlines()
+        assert len(jsonl) == 1
+        assert loads(jsonl[0])["id"] == "CVE-PASS"
+
+        meta = loads((tmp_path / "feed-meta.json").read_text(encoding="utf-8"))
+        assert meta["item_count"] == 1
+    finally:
+        reset_settings_cache()

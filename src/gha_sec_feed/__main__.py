@@ -16,7 +16,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from gha_sec_feed import __version__, writer
+from gha_sec_feed.config import settings
 from gha_sec_feed.fetchers import kev, nvd
+from gha_sec_feed.filter import apply_filters
 from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedMeta, FeedRow, SourceEntry
 
 # Per-source manifest emitted into feed-meta.json sources[]. Adding a new
@@ -96,8 +98,9 @@ def main(argv: list[str] | None = None) -> None:
     nvd_rows = nvd.fetch(args.since)
     kev_rows = kev.fetch()
     merged = _merge(nvd_rows, kev_rows)
-    meta = _build_meta(merged)
-    writer.write_feed(merged, meta, args.out)
+    filtered = apply_filters(merged, settings())
+    meta = _build_meta(filtered)
+    writer.write_feed(filtered, meta, args.out)
 
 
 if __name__ == "__main__":  # pragma: no cover
