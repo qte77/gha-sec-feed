@@ -8,10 +8,28 @@ import httpx
 import pytest
 
 from gha_sec_feed import http
+from gha_sec_feed.config import reset_settings_cache
 from gha_sec_feed.http import _validate_url, get
 
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+
+
+@pytest.fixture(autouse=True)
+def _clean_settings(monkeypatch: pytest.MonkeyPatch):
+    """Clear env vars + cached AppSettings before every test."""
+    for var in (
+        "NVD_API_KEY",
+        "GSF_OUT_DIR",
+        "GSF_SINCE_DAYS",
+        "GSF_HTTP_TIMEOUT",
+        "GSF_HTTP_MAX_RETRIES",
+        "GSF_USER_AGENT",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    reset_settings_cache()
+    yield
+    reset_settings_cache()
 
 
 def _mock(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.MockTransport:
@@ -72,6 +90,19 @@ def test_get_injects_default_identity_user_agent():
     assert "github.com/qte77/gha-sec-feed" in ua
 
 
+def test_get_user_agent_from_settings_env_override(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GSF_USER_AGENT", "my-fork/2.0 (+https://example.com)")
+    reset_settings_cache()
+    captured: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        captured.update(req.headers)
+        return httpx.Response(200, content=b"")
+
+    get(NVD_URL, _transport=_mock(handler))
+    assert captured["user-agent"] == "my-fork/2.0 (+https://example.com)"
+
+
 def test_get_preserves_caller_user_agent_case_insensitive():
     captured: dict[str, str] = {}
 
@@ -94,8 +125,35 @@ def test_get_injects_default_accept_json():
     assert captured["accept"] == "application/json"
 
 
+def test_get_injects_default_referer():
+    captured: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        captured.update(req.headers)
+        return httpx.Response(200, content=b"")
+
+    get(NVD_URL, _transport=_mock(handler))
+    assert captured["referer"] == "https://github.com/qte77/gha-sec-feed"
+
+
+def test_get_preserves_caller_referer():
+    captured: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        captured.update(req.headers)
+        return httpx.Response(200, content=b"")
+
+    get(
+        NVD_URL,
+        headers={"Referer": "https://custom.example/"},
+        _transport=_mock(handler),
+    )
+    assert captured["referer"] == "https://custom.example/"
+
+
 def test_get_injects_apikey_for_nvd_when_env_set(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("NVD_API_KEY", "secret-123")
+    reset_settings_cache()
     captured: dict[str, str] = {}
 
     def handler(req: httpx.Request) -> httpx.Response:
@@ -108,6 +166,7 @@ def test_get_injects_apikey_for_nvd_when_env_set(monkeypatch: pytest.MonkeyPatch
 
 def test_get_does_not_inject_apikey_for_non_nvd_host(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("NVD_API_KEY", "secret-123")
+    reset_settings_cache()
     captured: dict[str, str] = {}
 
     def handler(req: httpx.Request) -> httpx.Response:
@@ -118,8 +177,7 @@ def test_get_does_not_inject_apikey_for_non_nvd_host(monkeypatch: pytest.MonkeyP
     assert "apikey" not in (k.lower() for k in captured)
 
 
-def test_get_does_not_inject_apikey_when_env_unset(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("NVD_API_KEY", raising=False)
+def test_get_does_not_inject_apikey_when_env_unset():
     captured: dict[str, str] = {}
 
     def handler(req: httpx.Request) -> httpx.Response:
@@ -173,6 +231,18 @@ def test_get_raises_after_max_retries_exhausted(monkeypatch: pytest.MonkeyPatch)
         return httpx.Response(503)
 
     with pytest.raises(RuntimeError, match="after 3 attempts"):
+        get(NVD_URL, _transport=_mock(handler))
+
+
+def test_get_max_retries_from_settings_env_override(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(http, "_sleep", lambda _s: None)
+    monkeypatch.setenv("GSF_HTTP_MAX_RETRIES", "2")
+    reset_settings_cache()
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    with pytest.raises(RuntimeError, match="after 2 attempts"):
         get(NVD_URL, _transport=_mock(handler))
 
 
