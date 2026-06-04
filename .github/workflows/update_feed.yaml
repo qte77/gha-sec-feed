@@ -130,20 +130,22 @@ jobs:
             sleep 7
           }
 
+          SINCE_8D=$(date -u -d '8 days ago' +%Y-%m-%dT%H:%M:%SZ)
           probe "control-2025-window"   "2025-12-15T00:00:00Z" "2025-12-22T00:00:00Z"
-          probe "2026-end-at-NOW"       "${SINCE_7D}"          "${NOW}"
-          probe "2026-end-NOW-minus-1s" "${SINCE_7D}"          "${NOW_1S}"
-          probe "2026-end-NOW-minus-1m" "${SINCE_7D}"          "${NOW_1M}"
-          probe "2026-end-NOW-minus-5m" "${SINCE_7D}"          "${NOW_5M}"
+          probe "2026-7d-range"         "${SINCE_7D}"          "${NOW}"
+          probe "2026-8d-range"         "${SINCE_8D}"          "${NOW}"
 
       - name: Run producer
         env:
           SINCE_OVERRIDE: ${{ inputs.since }}
         run: |
           set -euo pipefail
-          # `since` is in ISO-Z form here; the NVD fetcher reformats
-          # internally to the millisecond form NVD's API requires (#27).
-          since="${SINCE_OVERRIDE:-$(date -u -d '8 days ago' +%FT%TZ)}"
+          # `since` is in ISO-Z form. NVD CVE API v2 accepts the
+          # ISO-Z-no-millisecond form despite their docs claiming the
+          # `.000` form (#27). Range is 7 days (matched to the probe's
+          # known-good window — 8-day requests were observed to 404
+          # under the same conditions a 7-day request returned 200).
+          since="${SINCE_OVERRIDE:-$(date -u -d '7 days ago' +%FT%TZ)}"
           echo "Fetching since: $since"
           echo "Filters: severity_min=$GSF_SEVERITY_MIN, kev_only=$GSF_KEV_ONLY, cwe_include=${GSF_CWE_INCLUDE:-(empty)}, keywords=${GSF_KEYWORDS:-(empty)}"
           uv run python -m gha_sec_feed --out "$GSF_OUT_DIR" --since "$since"
