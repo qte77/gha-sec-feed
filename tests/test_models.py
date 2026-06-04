@@ -28,9 +28,12 @@ def _valid_row(**overrides):
     return base
 
 
-def test_feed_row_default_schema_version_matches_constant():
+def test_feed_row_default_schema_version_matches_module_constant():
+    # Catches default-vs-constant desync (someone bumps the constant but
+    # forgets the model default, or vice versa). The literal value lives
+    # in models.py only — asserting it here would be the tautology.
     row = FeedRow(**_valid_row())
-    assert row.schema_version == FEED_SCHEMA_VERSION == "1.0.0"
+    assert row.schema_version == FEED_SCHEMA_VERSION
 
 
 def test_feed_row_rejects_unknown_source_slug():
