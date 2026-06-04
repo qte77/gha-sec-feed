@@ -125,7 +125,12 @@ def test_get_injects_default_accept_json():
     assert captured["accept"] == "application/json"
 
 
-def test_get_injects_default_referer():
+def test_get_does_not_inject_referer_by_default():
+    # API clients have no "referring page" semantics. Sending a
+    # default Referer is at best meaningless and at worst trips
+    # server-side bot-detection heuristics that look for unusual
+    # browser-like shapes. Per-host blocks are not the cause — the
+    # right fix is to omit the header globally.
     captured: dict[str, str] = {}
 
     def handler(req: httpx.Request) -> httpx.Response:
@@ -133,7 +138,7 @@ def test_get_injects_default_referer():
         return httpx.Response(200, content=b"")
 
     get(NVD_URL, _transport=_mock(handler))
-    assert captured["referer"] == "https://github.com/qte77/gha-sec-feed"
+    assert "referer" not in {k.lower() for k in captured}
 
 
 def test_get_preserves_caller_referer():
