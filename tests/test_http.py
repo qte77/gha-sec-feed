@@ -198,6 +198,26 @@ def test_get_does_not_inject_apikey_when_env_unset():
     assert "apikey" not in (k.lower() for k in captured)
 
 
+def test_get_does_not_inject_empty_apikey_when_env_blank(monkeypatch: pytest.MonkeyPatch):
+    # The GitHub Actions `${{ secrets.NVD_API_KEY }}` substitution
+    # renders an empty string when the secret isn't defined, so
+    # NVD_API_KEY="" is the common real-world shape. pydantic-settings
+    # wraps that as SecretStr("") which is not None. NVD's CDN treats
+    # `apiKey: ` (empty value) as an invalid auth attempt and 404s,
+    # which is the root cause of #27. The header must be omitted
+    # entirely when the value is empty.
+    monkeypatch.setenv("NVD_API_KEY", "")
+    reset_settings_cache()
+    captured: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        captured.update(req.headers)
+        return httpx.Response(200, content=b"")
+
+    get(NVD_URL, _transport=_mock(handler))
+    assert "apikey" not in (k.lower() for k in captured)
+
+
 # ---------- retry behavior -------------------------------------------------
 
 
