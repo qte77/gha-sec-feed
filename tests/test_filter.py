@@ -91,6 +91,37 @@ def test_passes_keyword_matches_against_cve_id_too():
     assert _passes(_row(description="unrelated"), s) is True
 
 
+def test_passes_keyword_uses_word_boundary_not_substring():
+    # `rust` must match the standalone word "Rust" but NOT fire on
+    # "trust", "intrusion", "untrusted", "robustness", "rusty" — naive
+    # substring matching produced ~186/272 hits in the 2026-06-05
+    # showcase run, dominated by such false positives. Catches a
+    # regression to the substring impl.
+    s = _settings(keywords=["rust"])
+    # Positive: standalone "Rust" (the language), case-insensitive.
+    assert _passes(_row(description="Memory safety bug in the Rust compiler"), s) is True
+    # Positive: surrounded by punctuation, still a word boundary.
+    assert _passes(_row(description="See rust-lang.org for details"), s) is True
+    # Negatives: these all contain the substring "rust" but no
+    # standalone word — each must be REJECTED.
+    for description in (
+        "Untrusted input leads to RCE",
+        "Lateral intrusion via SMB",
+        "Trust boundary violation in authn flow",
+        "Robustness fix for the parser",
+        "Rusty hinges in the gate",
+    ):
+        assert _passes(_row(description=description), s) is False, description
+
+
+def test_passes_keyword_matches_short_keyword_only_as_whole_word():
+    # Short keywords like "uv", "pip", "npm" are the worst substring
+    # offenders. Each must be REJECTED inside an unrelated longer word.
+    s = _settings(keywords=["uv"])
+    assert _passes(_row(description="OpenUV exposure tracker bug"), s) is False
+    assert _passes(_row(description="uv-tool maintains the cache"), s) is True
+
+
 # ---------- cwe_include predicate --------------------------------------------
 
 

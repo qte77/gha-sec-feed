@@ -13,6 +13,8 @@ would make the ``github`` keyword match essentially every NVD row.
 
 from __future__ import annotations
 
+import re
+
 from gha_sec_feed.config import AppSettings
 from gha_sec_feed.models import FeedRow, Severity
 
@@ -43,7 +45,14 @@ def _passes(row: FeedRow, settings: AppSettings) -> bool:
             return False
     if settings.keywords:
         haystack = f"{row.id} {row.description}".lower()
-        if not any(kw.lower() in haystack for kw in settings.keywords):
+        # Word-boundary match (case-insensitive) so short keywords like
+        # `rust`, `uv`, `pip`, `npm` don't fire on substrings like
+        # "trust", "intrusion", "OpenUV", "pipeline", "snmpwalk". The
+        # naive `kw in haystack` substring impl produced ~186/272 hits
+        # for `rust` alone in the 2026-06-05 showcase run.
+        if not any(
+            re.search(rf"\b{re.escape(kw.lower())}\b", haystack) for kw in settings.keywords
+        ):
             return False
     return True
 
