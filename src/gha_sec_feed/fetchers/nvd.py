@@ -76,6 +76,21 @@ def _extract_cwes(cve: dict[str, Any]) -> list[str]:
     return cwes
 
 
+def _extract_refs(cve: dict[str, Any]) -> list[str]:
+    """Return the ``references[].url`` list, falling back to the NVD detail page.
+
+    The C1 contract requires ``len(refs) >= 1``; NVD occasionally ships
+    CVEs with an empty ``references`` array (typically very fresh
+    entries). Fall back to the canonical detail page URL so every row
+    carries at least one authoritative reference, matching the
+    catalog-URL fallback pattern in the KEV fetcher.
+    """
+    urls = [ref["url"] for ref in cve.get("references", [])]
+    if not urls:
+        return [f"https://nvd.nist.gov/vuln/detail/{cve['id']}"]
+    return urls
+
+
 def _to_row(cve: dict[str, Any]) -> FeedRow:
     """Transform one NVD ``cve`` object into a :class:`FeedRow`."""
     base_score = _extract_base_score(cve)
@@ -87,7 +102,7 @@ def _to_row(cve: dict[str, Any]) -> FeedRow:
         cvss=base_score,
         epss=None,
         kev=False,
-        refs=[ref["url"] for ref in cve.get("references", [])],
+        refs=_extract_refs(cve),
         description=_extract_description(cve),
         cwes=_extract_cwes(cve),
     )
