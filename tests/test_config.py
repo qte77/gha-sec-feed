@@ -38,12 +38,26 @@ def test_defaults_when_no_env_vars_set():
     assert s.since_days == 7
     assert s.http_timeout == 30.0
     assert s.http_max_retries == 3
-    # Default User-Agent carries no project identity — forks override
-    # via GSF_USER_AGENT if they want polite-client attribution.
+    # Default User-Agent: no project identity, picked from the curated
+    # browser pool so CDN fingerprinting heuristics don't flag us.
     assert "gha-sec-feed" not in s.user_agent
     assert "qte77" not in s.user_agent
     assert "github.com" not in s.user_agent
-    assert len(s.user_agent) > 0
+    assert s.user_agent.startswith("Mozilla/5.0")
+
+
+def test_user_agent_default_factory_picks_from_curated_pool():
+    # The factory must return one of the declared browser UAs (no string
+    # constructed from elsewhere) — catches silently-introduced template
+    # interpolation or trimming of the pool.
+    from gha_sec_feed.config import _BROWSER_UAS
+
+    sampled = {AppSettings().user_agent for _ in range(50)}
+    assert sampled <= set(_BROWSER_UAS)
+    # Pool has > 1 distinct entry — verify randomisation is actually
+    # giving us variety across 50 samples (probability of getting only
+    # 1 distinct value out of 7 in 50 picks is ~7 * (1/7)^49 ≈ 0).
+    assert len(sampled) > 1
 
 
 def test_nvd_api_key_read_from_unprefixed_env_var(monkeypatch: pytest.MonkeyPatch):

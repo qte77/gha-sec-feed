@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from gha_sec_feed.fetchers.nvd import _severity, fetch
+from gha_sec_feed.fetchers.nvd import _extract_refs, _severity, fetch
 from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedRow
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nvd_sample.json"
@@ -20,40 +20,42 @@ def mock_http(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     captured: dict[str, Any] = {}
     fixture_bytes = FIXTURE.read_bytes()
 
-    def fake_get(url: str, **_kw: Any) -> bytes:
+    def fake_get(
+        url: str,
+        *,
+        params: dict[str, str] | None = None,
+        **_kw: Any,
+    ) -> bytes:
         captured["url"] = url
+        captured["params"] = dict(params) if params else {}
         return fixture_bytes
 
     monkeypatch.setattr("gha_sec_feed.fetchers.nvd.http.get", fake_get)
     return captured
 
 
-def test_fetch_calls_http_with_pub_start_date_in_iso_z_form(
+def test_fetch_passes_pub_start_date_via_params_in_iso_z_form(
     mock_http: dict[str, Any],
 ):
-    # Empirical: an inline curl probe in update_feed against the NVD
-    # CVE API v2 endpoint returned HTTP 200 for the Z-suffix-no-ms form
-    # at the same wall-clock minute that the producer's `.000` form
-    # returned HTTP 404. NVD's docs document `.000` but the live API
-    # rejects it. The fetcher must pass `since` through verbatim
-    # (callers already supply the ISO-Z form).
+    # NVD CVE API v2 wants the ISO-8601 Z form (no millisecond suffix)
+    # in the `pubStartDate` query parameter, and is picky about the
+    # URL builder — pre-building the URL with urllib.urlencode was
+    # observed to 404 while passing the params separately so httpx
+    # builds the query returned 200. See #27.
     fetch(SINCE)
-    assert "pubStartDate=2026-05-01T00%3A00%3A00Z" in mock_http["url"]
-    # Anti-regression: the broken `.000` form must not reappear.
-    assert ".000" not in mock_http["url"]
-    assert mock_http["url"].startswith("https://services.nvd.nist.gov/rest/json/cves/2.0")
+    assert mock_http["params"]["pubStartDate"] == SINCE
+    assert mock_http["url"] == "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 
-def test_fetch_url_pub_end_date_uses_iso_z_form(mock_http: dict[str, Any]):
+def test_fetch_pub_end_date_param_uses_iso_z_form(mock_http: dict[str, Any]):
     # pubEndDate is computed inside fetch() (datetime.now); assert the
-    # format alone without pinning the value. Catches re-introduction
-    # of the broken `.000`-no-Z form from PR #29.
+    # format alone without pinning the value. Anti-regression on the
+    # `.000`-no-Z form (#29).
     import re
 
     fetch(SINCE)
-    pattern = r"pubEndDate=\d{4}-\d{2}-\d{2}T\d{2}%3A\d{2}%3A\d{2}Z"
-    assert re.search(pattern, mock_http["url"]), mock_http["url"]
-    assert ".000" not in mock_http["url"]
+    end = mock_http["params"]["pubEndDate"]
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", end), end
 
 
 def test_fetch_returns_one_feedrow_per_vulnerability(mock_http: dict[str, Any]):
@@ -152,6 +154,34 @@ def test_fetch_returns_empty_cwes_when_weaknesses_field_absent(
     # against missing upstream fields.
     rows = {r.id: r for r in fetch(SINCE)}
     assert rows["CVE-2026-1003"].cwes == []
+
+
+def test_extract_refs_passes_through_reference_urls():
+    cve = {
+        "id": "CVE-2026-9999",
+        "references": [
+            {"url": "https://example.com/a"},
+            {"url": "https://example.com/b"},
+        ],
+    }
+    assert _extract_refs(cve) == ["https://example.com/a", "https://example.com/b"]
+
+
+def test_extract_refs_falls_back_to_nvd_detail_url_when_empty():
+    # NVD occasionally ships CVEs with no `references` entries (usually
+    # very fresh entries that haven't been enriched yet). The C1
+    # contract requires len(refs) >= 1, so we must synthesise a
+    # canonical URL — the NVD detail page is the authoritative
+    # fallback. Catches a regression to the pre-fix behaviour where
+    # _to_row passed an empty list straight through to FeedRow.
+    cve = {"id": "CVE-2026-8888", "references": []}
+    assert _extract_refs(cve) == ["https://nvd.nist.gov/vuln/detail/CVE-2026-8888"]
+
+
+def test_extract_refs_falls_back_when_references_field_absent():
+    # Same fallback when the field is missing entirely (not just empty).
+    cve = {"id": "CVE-2026-7777"}
+    assert _extract_refs(cve) == ["https://nvd.nist.gov/vuln/detail/CVE-2026-7777"]
 
 
 def test_severity_threshold_table():

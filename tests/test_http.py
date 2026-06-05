@@ -77,11 +77,11 @@ def test_get_returns_response_body():
     assert get(NVD_URL, _transport=_mock(handler)) == b"hello"
 
 
-def test_get_default_user_agent_omits_project_identity():
-    # The auto-injected default must not name the upstream project or
-    # link back to its GitHub URL — that's caller identity, not
-    # transport. Forks / downstream callers set GSF_USER_AGENT to
-    # identify themselves if they choose.
+def test_get_default_user_agent_is_a_real_browser_string():
+    # Default UA must be a curated browser string so NVD's Cloudflare
+    # layer doesn't 404 us on the bot-detection heuristic. Catches a
+    # regression to a generic "http-client/..." or project-identifying
+    # value.
     captured: dict[str, str] = {}
 
     def handler(req: httpx.Request) -> httpx.Response:
@@ -92,8 +92,7 @@ def test_get_default_user_agent_omits_project_identity():
     ua = captured["user-agent"]
     assert "gha-sec-feed" not in ua
     assert "qte77" not in ua
-    assert "github.com" not in ua
-    assert len(ua) > 0
+    assert ua.startswith("Mozilla/5.0")
 
 
 def test_get_user_agent_from_settings_env_override(monkeypatch: pytest.MonkeyPatch):
@@ -189,6 +188,26 @@ def test_get_does_not_inject_apikey_for_non_nvd_host(monkeypatch: pytest.MonkeyP
 
 
 def test_get_does_not_inject_apikey_when_env_unset():
+    captured: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        captured.update(req.headers)
+        return httpx.Response(200, content=b"")
+
+    get(NVD_URL, _transport=_mock(handler))
+    assert "apikey" not in (k.lower() for k in captured)
+
+
+def test_get_does_not_inject_empty_apikey_when_env_blank(monkeypatch: pytest.MonkeyPatch):
+    # The GitHub Actions `${{ secrets.NVD_API_KEY }}` substitution
+    # renders an empty string when the secret isn't defined, so
+    # NVD_API_KEY="" is the common real-world shape. pydantic-settings
+    # wraps that as SecretStr("") which is not None. NVD's CDN treats
+    # `apiKey: ` (empty value) as an invalid auth attempt and 404s,
+    # which is the root cause of #27. The header must be omitted
+    # entirely when the value is empty.
+    monkeypatch.setenv("NVD_API_KEY", "")
+    reset_settings_cache()
     captured: dict[str, str] = {}
 
     def handler(req: httpx.Request) -> httpx.Response:

@@ -12,7 +12,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from json import loads
 from typing import Any
-from urllib.parse import urlencode
 
 from gha_sec_feed import http
 from gha_sec_feed.models import FeedRow
@@ -76,6 +75,21 @@ def _extract_cwes(cve: dict[str, Any]) -> list[str]:
     return cwes
 
 
+def _extract_refs(cve: dict[str, Any]) -> list[str]:
+    """Return the ``references[].url`` list, falling back to the NVD detail page.
+
+    The C1 contract requires ``len(refs) >= 1``; NVD occasionally ships
+    CVEs with an empty ``references`` array (typically very fresh
+    entries). Fall back to the canonical detail page URL so every row
+    carries at least one authoritative reference, matching the
+    catalog-URL fallback pattern in the KEV fetcher.
+    """
+    urls = [ref["url"] for ref in cve.get("references", [])]
+    if not urls:
+        return [f"https://nvd.nist.gov/vuln/detail/{cve['id']}"]
+    return urls
+
+
 def _to_row(cve: dict[str, Any]) -> FeedRow:
     """Transform one NVD ``cve`` object into a :class:`FeedRow`."""
     base_score = _extract_base_score(cve)
@@ -87,7 +101,7 @@ def _to_row(cve: dict[str, Any]) -> FeedRow:
         cvss=base_score,
         epss=None,
         kev=False,
-        refs=[ref["url"] for ref in cve.get("references", [])],
+        refs=_extract_refs(cve),
         description=_extract_description(cve),
         cwes=_extract_cwes(cve),
     )
@@ -102,11 +116,13 @@ def fetch(since: str) -> list[FeedRow]:
     Returns:
         List of :class:`FeedRow`, one per ``vulnerabilities[].cve``.
     """
-    # NVD CVE API v2 accepts the ISO-8601 Z form (no millisecond suffix)
-    # in practice — empirically verified by a curl probe alongside the
-    # producer at the same minute (#27). NVD's developer docs document
-    # the `.000` form, but the live API returns HTTP 404 for it.
+    # NVD CVE API v2 wants literal colons in the query timestamps and is
+    # picky about the URL builder — passing a pre-built URL string with
+    # urllib.urlencode (even with `safe=":"`) was observed to 404 while a
+    # bare `httpx.get(url, params=...)` against the same endpoint and
+    # same wall-clock minute returned 200. We therefore delegate the
+    # query-string assembly to httpx via the `params=` path. See #27.
     pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    url = f"{_ENDPOINT}?{urlencode({'pubStartDate': since, 'pubEndDate': pub_end})}"
-    payload = loads(http.get(url))
+    params = {"pubStartDate": since, "pubEndDate": pub_end}
+    payload = loads(http.get(_ENDPOINT, params=params))
     return [_to_row(item["cve"]) for item in payload.get("vulnerabilities", [])]
