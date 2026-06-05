@@ -141,6 +141,13 @@ def get(
     effective_timeout = s.http_timeout if timeout is None else timeout
     effective_retries = s.http_max_retries if max_retries is None else max_retries
     merged_headers = _build_headers(url, headers)
+    # TEMP DIAGNOSTIC (#27): show the exact request we're about to issue.
+    import sys
+
+    print(
+        f"DEBUG http.get url={url!r} params={params!r} headers={merged_headers!r}",
+        file=sys.stderr,
+    )
     last_status: int | None = None
 
     def _request() -> httpx.Response:
