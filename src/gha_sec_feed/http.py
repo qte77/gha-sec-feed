@@ -121,6 +121,7 @@ def get(
     url: str,
     *,
     headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
     timeout: float | None = None,
     max_retries: int | None = None,
     _transport: httpx.BaseTransport | None = None,
@@ -150,14 +151,35 @@ def get(
     effective_retries = s.http_max_retries if max_retries is None else max_retries
     merged_headers = _build_headers(url, headers)
     last_status: int | None = None
-    with httpx.Client(transport=_transport, timeout=effective_timeout) as client:
-        for attempt in range(effective_retries):
-            resp = client.get(url, headers=merged_headers)
-            if resp.status_code < 400:
-                return resp.content
-            last_status = resp.status_code
-            if resp.status_code not in _RETRY_STATUS:
-                raise RuntimeError(f"HTTP {resp.status_code} for {url}")
-            if attempt < effective_retries - 1:
-                _sleep(_retry_delay(resp, attempt))
+
+    def _request() -> httpx.Response:
+        # Production path: bare `httpx.get` (creates an internal short-
+        # lived Client per call). Mirrors the request shape that
+        # empirically returns 200 against NVD's CDN. Tests inject a
+        # MockTransport via `_transport`, which only takes effect when
+        # we explicitly construct a Client.
+        if _transport is not None:
+            with httpx.Client(transport=_transport) as client:
+                return client.get(
+                    url,
+                    params=params,
+                    headers=merged_headers,
+                    timeout=effective_timeout,
+                )
+        return httpx.get(
+            url,
+            params=params,
+            headers=merged_headers,
+            timeout=effective_timeout,
+        )
+
+    for attempt in range(effective_retries):
+        resp = _request()
+        if resp.status_code < 400:
+            return resp.content
+        last_status = resp.status_code
+        if resp.status_code not in _RETRY_STATUS:
+            raise RuntimeError(f"HTTP {resp.status_code} for {url}")
+        if attempt < effective_retries - 1:
+            _sleep(_retry_delay(resp, attempt))
     raise RuntimeError(f"HTTP {last_status} after {effective_retries} attempts: {url}")
