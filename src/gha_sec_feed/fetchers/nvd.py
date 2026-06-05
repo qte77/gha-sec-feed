@@ -12,7 +12,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from json import loads
 from typing import Any
-from urllib.parse import urlencode
 
 from gha_sec_feed import http
 from gha_sec_feed.models import FeedRow
@@ -102,16 +101,13 @@ def fetch(since: str) -> list[FeedRow]:
     Returns:
         List of :class:`FeedRow`, one per ``vulnerabilities[].cve``.
     """
-    # NVD CVE API v2 accepts the ISO-8601 Z form (no millisecond suffix)
-    # but rejects URLs whose colons are percent-encoded as `%3A` — the
-    # live API silently 404s those even though they're RFC-equivalent.
-    # `urlencode(..., safe=":")` keeps the colon literal in the query
-    # string. Empirically isolated by a uv-Python httpx.get(params=...)
-    # probe (which leaves colons unencoded) returning HTTP 200 alongside
-    # the producer's percent-encoded URL returning HTTP 404 in the same
-    # workflow run, seconds apart. See #27.
+    # NVD CVE API v2 wants literal colons in the query timestamps and is
+    # picky about the URL builder — passing a pre-built URL string with
+    # urllib.urlencode (even with `safe=":"`) was observed to 404 while a
+    # bare `httpx.get(url, params=...)` against the same endpoint and
+    # same wall-clock minute returned 200. We therefore delegate the
+    # query-string assembly to httpx via the new `params=` path. See #27.
     pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    query = urlencode({"pubStartDate": since, "pubEndDate": pub_end}, safe=":")
-    url = f"{_ENDPOINT}?{query}"
-    payload = loads(http.get(url))
+    params = {"pubStartDate": since, "pubEndDate": pub_end}
+    payload = loads(http.get(_ENDPOINT, params=params))
     return [_to_row(item["cve"]) for item in payload.get("vulnerabilities", [])]

@@ -20,44 +20,42 @@ def mock_http(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     captured: dict[str, Any] = {}
     fixture_bytes = FIXTURE.read_bytes()
 
-    def fake_get(url: str, **_kw: Any) -> bytes:
+    def fake_get(
+        url: str,
+        *,
+        params: dict[str, str] | None = None,
+        **_kw: Any,
+    ) -> bytes:
         captured["url"] = url
+        captured["params"] = dict(params) if params else {}
         return fixture_bytes
 
     monkeypatch.setattr("gha_sec_feed.fetchers.nvd.http.get", fake_get)
     return captured
 
 
-def test_fetch_calls_http_with_pub_start_date_in_iso_z_form(
+def test_fetch_passes_pub_start_date_via_params_in_iso_z_form(
     mock_http: dict[str, Any],
 ):
-    # Empirical: NVD CVE API v2 rejects URLs whose colons are
-    # URL-encoded as `%3A` and accepts literal `:` in the same
-    # position. Bare httpx.get(params=...) returned 200 while our
-    # urllib.urlencode wrapper (which percent-encodes `:`) returned
-    # 404, in the same workflow run, seconds apart. The fetcher must
-    # therefore keep colons unencoded in the query string.
+    # NVD CVE API v2 wants the ISO-8601 Z form (no millisecond suffix)
+    # in the `pubStartDate` query parameter, and is picky about the
+    # URL builder — pre-building the URL with urllib.urlencode was
+    # observed to 404 while passing the params separately so httpx
+    # builds the query returned 200. See #27.
     fetch(SINCE)
-    assert "pubStartDate=2026-05-01T00:00:00Z" in mock_http["url"]
-    # Anti-regression: the percent-encoded form must not appear.
-    assert "%3A" not in mock_http["url"]
-    assert ".000" not in mock_http["url"]
-    assert mock_http["url"].startswith("https://services.nvd.nist.gov/rest/json/cves/2.0")
+    assert mock_http["params"]["pubStartDate"] == SINCE
+    assert mock_http["url"] == "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 
-def test_fetch_url_pub_end_date_uses_iso_z_form_with_literal_colons(
-    mock_http: dict[str, Any],
-):
+def test_fetch_pub_end_date_param_uses_iso_z_form(mock_http: dict[str, Any]):
     # pubEndDate is computed inside fetch() (datetime.now); assert the
-    # format alone without pinning the value. Anti-regression on both
-    # the `.000`-no-Z form (#29) and the `%3A`-encoded-colon form.
+    # format alone without pinning the value. Anti-regression on the
+    # `.000`-no-Z form (#29).
     import re
 
     fetch(SINCE)
-    pattern = r"pubEndDate=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"
-    assert re.search(pattern, mock_http["url"]), mock_http["url"]
-    assert "%3A" not in mock_http["url"]
-    assert ".000" not in mock_http["url"]
+    end = mock_http["params"]["pubEndDate"]
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", end), end
 
 
 def test_fetch_returns_one_feedrow_per_vulnerability(mock_http: dict[str, Any]):

@@ -112,6 +112,7 @@ def get(
     url: str,
     *,
     headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
     timeout: float | None = None,
     max_retries: int | None = None,
     _transport: httpx.BaseTransport | None = None,
@@ -143,7 +144,7 @@ def get(
     last_status: int | None = None
     with httpx.Client(transport=_transport, timeout=effective_timeout) as client:
         for attempt in range(effective_retries):
-            resp = client.get(url, headers=merged_headers)
+            resp = client.get(url, params=params, headers=merged_headers)
             if resp.status_code < 400:
                 return resp.content
             last_status = resp.status_code
