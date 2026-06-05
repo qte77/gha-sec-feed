@@ -92,8 +92,17 @@ def _build_headers(url: str, headers: dict[str, str] | None) -> dict[str, str]:
         merged["Accept"] = _DEFAULT_ACCEPT
     # Referer is intentionally NOT auto-injected — see module docstring.
     if urlparse(url).hostname == _NVD_HOST and "apikey" not in keys_lower:
+        # Send `apiKey` only when the secret is set AND non-empty. The
+        # GitHub Actions `secrets.NVD_API_KEY` substitution renders an
+        # empty string when the secret isn't defined; pydantic-settings
+        # then wraps that as `SecretStr("")` which is not None. NVD's
+        # Cloudflare layer treats `apiKey:` with an empty value as an
+        # invalid auth attempt and silently 404s the request (the root
+        # cause of #27).
         if s.nvd_api_key is not None:
-            merged["apiKey"] = s.nvd_api_key.get_secret_value()
+            key = s.nvd_api_key.get_secret_value()
+            if key:
+                merged["apiKey"] = key
     return merged
 
 
