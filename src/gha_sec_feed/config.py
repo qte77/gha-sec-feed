@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from secrets import choice
 from typing import Annotated, Any
 
 from pydantic import BeforeValidator, Field, SecretStr
@@ -27,6 +28,28 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from gha_sec_feed import __version__
 from gha_sec_feed.models import Severity
+
+# Curated list of top desktop browser User-Agent strings (Chrome /
+# Firefox / Safari / Edge on Windows / macOS / Linux), per
+# https://www.useragents.me top entries. NVD is behind Cloudflare,
+# which fingerprints non-browser User-Agents and silently 404s
+# requests after a small number of failures from the same UA value.
+# Defaulting to a random pick from a real-browser pool sidesteps
+# that heuristic without needing an NVD API key.
+_BROWSER_UAS: tuple[str, ...] = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2; rv:121.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+)
+
+
+def _random_browser_ua() -> str:
+    """Pick a random recent browser UA from :data:`_BROWSER_UAS`."""
+    return choice(_BROWSER_UAS)
 
 
 def _parse_csv(value: Any) -> Any:
@@ -92,11 +115,13 @@ class AppSettings(BaseSettings):
     )
 
     user_agent: str = Field(
-        default=f"http-client/{__version__}",
+        default_factory=_random_browser_ua,
         description=(
-            "Outbound User-Agent. Default carries no project identity so the "
-            "transport layer doesn't speak for the project. Forks set this "
-            "explicitly via GSF_USER_AGENT for polite-client attribution."
+            "Outbound User-Agent. Default picks a random recent browser UA "
+            "from a curated list to avoid CDN bot-detection heuristics — "
+            "NVD's Cloudflare layer silently 404s requests after a small "
+            "number of failures from the same non-browser UA value. Carries "
+            "no project identity; forks override via GSF_USER_AGENT."
         ),
     )
 

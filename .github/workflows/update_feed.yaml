@@ -108,12 +108,9 @@ jobs:
           SINCE_OVERRIDE: ${{ inputs.since }}
         run: |
           set -euo pipefail
-          # `since` is in ISO-Z form. NVD CVE API v2 accepts the
-          # ISO-Z-no-millisecond form despite their docs claiming the
-          # `.000` form (#27). Range is 7 days (matched to the probe's
-          # known-good window — 8-day requests were observed to 404
-          # under the same conditions a 7-day request returned 200).
-          since="${SINCE_OVERRIDE:-$(date -u -d '7 days ago' +%FT%TZ)}"
+          # `since` is in ISO-Z form. NVD CVE API v2 accepts that
+          # form despite their docs claiming `.000` is required (#27).
+          since="${SINCE_OVERRIDE:-$(date -u -d '8 days ago' +%FT%TZ)}"
           echo "Fetching since: $since"
           echo "Filters: severity_min=$GSF_SEVERITY_MIN, kev_only=$GSF_KEV_ONLY, cwe_include=${GSF_CWE_INCLUDE:-(empty)}, keywords=${GSF_KEYWORDS:-(empty)}"
           uv run python -m gha_sec_feed --out "$GSF_OUT_DIR" --since "$since"
