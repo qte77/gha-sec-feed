@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from gha_sec_feed.fetchers.nvd import _severity, fetch
+from gha_sec_feed.fetchers.nvd import _extract_refs, _severity, fetch
 from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedRow
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nvd_sample.json"
@@ -154,6 +154,34 @@ def test_fetch_returns_empty_cwes_when_weaknesses_field_absent(
     # against missing upstream fields.
     rows = {r.id: r for r in fetch(SINCE)}
     assert rows["CVE-2026-1003"].cwes == []
+
+
+def test_extract_refs_passes_through_reference_urls():
+    cve = {
+        "id": "CVE-2026-9999",
+        "references": [
+            {"url": "https://example.com/a"},
+            {"url": "https://example.com/b"},
+        ],
+    }
+    assert _extract_refs(cve) == ["https://example.com/a", "https://example.com/b"]
+
+
+def test_extract_refs_falls_back_to_nvd_detail_url_when_empty():
+    # NVD occasionally ships CVEs with no `references` entries (usually
+    # very fresh entries that haven't been enriched yet). The C1
+    # contract requires len(refs) >= 1, so we must synthesise a
+    # canonical URL — the NVD detail page is the authoritative
+    # fallback. Catches a regression to the pre-fix behaviour where
+    # _to_row passed an empty list straight through to FeedRow.
+    cve = {"id": "CVE-2026-8888", "references": []}
+    assert _extract_refs(cve) == ["https://nvd.nist.gov/vuln/detail/CVE-2026-8888"]
+
+
+def test_extract_refs_falls_back_when_references_field_absent():
+    # Same fallback when the field is missing entirely (not just empty).
+    cve = {"id": "CVE-2026-7777"}
+    assert _extract_refs(cve) == ["https://nvd.nist.gov/vuln/detail/CVE-2026-7777"]
 
 
 def test_severity_threshold_table():
