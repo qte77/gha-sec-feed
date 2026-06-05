@@ -13,7 +13,7 @@ on:
         description: 'CSV keyword filter (id + description, case-insensitive). Default is the qte77-stack showcase set.'
         required: false
         type: string
-        default: 'github,python,docker,npm,rust,pip,pypi,node,typescript,cargo,uv,httpx,pydantic,markdown,codeql'
+        default: 'github actions,docker image,docker container,kubernetes,pypi,pip install,nodejs,node.js,typescript,cargo crate,uv-python,httpx,pydantic,fastapi,codeql'
       severity_min:
         description: 'Minimum severity (critical/high/medium/low/unknown). unknown = no severity filter.'
         required: false
@@ -88,7 +88,7 @@ jobs:
       # strings are treated as "no filter" by the producer's CSV parser.
       GSF_KEYWORDS: >-
         ${{ github.event_name == 'schedule'
-            && 'github,python,docker,npm,rust,pip,pypi,node,typescript,cargo,uv,httpx,pydantic,markdown,codeql'
+            && 'github actions,docker image,docker container,kubernetes,pypi,pip install,nodejs,node.js,typescript,cargo crate,uv-python,httpx,pydantic,fastapi,codeql'
             || inputs.keywords }}
       GSF_SEVERITY_MIN: ${{ inputs.severity_min || 'unknown' }}
       GSF_KEV_ONLY: ${{ inputs.kev_only && 'true' || 'false' }}
