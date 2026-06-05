@@ -103,10 +103,15 @@ def fetch(since: str) -> list[FeedRow]:
         List of :class:`FeedRow`, one per ``vulnerabilities[].cve``.
     """
     # NVD CVE API v2 accepts the ISO-8601 Z form (no millisecond suffix)
-    # in practice — empirically verified by a curl probe alongside the
-    # producer at the same minute (#27). NVD's developer docs document
-    # the `.000` form, but the live API returns HTTP 404 for it.
+    # but rejects URLs whose colons are percent-encoded as `%3A` — the
+    # live API silently 404s those even though they're RFC-equivalent.
+    # `urlencode(..., safe=":")` keeps the colon literal in the query
+    # string. Empirically isolated by a uv-Python httpx.get(params=...)
+    # probe (which leaves colons unencoded) returning HTTP 200 alongside
+    # the producer's percent-encoded URL returning HTTP 404 in the same
+    # workflow run, seconds apart. See #27.
     pub_end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    url = f"{_ENDPOINT}?{urlencode({'pubStartDate': since, 'pubEndDate': pub_end})}"
+    query = urlencode({"pubStartDate": since, "pubEndDate": pub_end}, safe=":")
+    url = f"{_ENDPOINT}?{query}"
     payload = loads(http.get(url))
     return [_to_row(item["cve"]) for item in payload.get("vulnerabilities", [])]

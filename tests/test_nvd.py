@@ -31,28 +31,32 @@ def mock_http(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 def test_fetch_calls_http_with_pub_start_date_in_iso_z_form(
     mock_http: dict[str, Any],
 ):
-    # Empirical: an inline curl probe in update_feed against the NVD
-    # CVE API v2 endpoint returned HTTP 200 for the Z-suffix-no-ms form
-    # at the same wall-clock minute that the producer's `.000` form
-    # returned HTTP 404. NVD's docs document `.000` but the live API
-    # rejects it. The fetcher must pass `since` through verbatim
-    # (callers already supply the ISO-Z form).
+    # Empirical: NVD CVE API v2 rejects URLs whose colons are
+    # URL-encoded as `%3A` and accepts literal `:` in the same
+    # position. Bare httpx.get(params=...) returned 200 while our
+    # urllib.urlencode wrapper (which percent-encodes `:`) returned
+    # 404, in the same workflow run, seconds apart. The fetcher must
+    # therefore keep colons unencoded in the query string.
     fetch(SINCE)
-    assert "pubStartDate=2026-05-01T00%3A00%3A00Z" in mock_http["url"]
-    # Anti-regression: the broken `.000` form must not reappear.
+    assert "pubStartDate=2026-05-01T00:00:00Z" in mock_http["url"]
+    # Anti-regression: the percent-encoded form must not appear.
+    assert "%3A" not in mock_http["url"]
     assert ".000" not in mock_http["url"]
     assert mock_http["url"].startswith("https://services.nvd.nist.gov/rest/json/cves/2.0")
 
 
-def test_fetch_url_pub_end_date_uses_iso_z_form(mock_http: dict[str, Any]):
+def test_fetch_url_pub_end_date_uses_iso_z_form_with_literal_colons(
+    mock_http: dict[str, Any],
+):
     # pubEndDate is computed inside fetch() (datetime.now); assert the
-    # format alone without pinning the value. Catches re-introduction
-    # of the broken `.000`-no-Z form from PR #29.
+    # format alone without pinning the value. Anti-regression on both
+    # the `.000`-no-Z form (#29) and the `%3A`-encoded-colon form.
     import re
 
     fetch(SINCE)
-    pattern = r"pubEndDate=\d{4}-\d{2}-\d{2}T\d{2}%3A\d{2}%3A\d{2}Z"
+    pattern = r"pubEndDate=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"
     assert re.search(pattern, mock_http["url"]), mock_http["url"]
+    assert "%3A" not in mock_http["url"]
     assert ".000" not in mock_http["url"]
 
 
