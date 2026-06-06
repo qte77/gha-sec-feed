@@ -77,6 +77,7 @@ jobs:
     name: fetch + commit + auto-merge PR
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     env:
@@ -138,4 +139,9 @@ jobs:
             --base main \
             --head "$branch"
           gh pr merge "$branch" --squash --auto --delete-branch
+          # CodeQL's `on: pull_request` does NOT trigger for PRs opened by
+          # GITHUB_TOKEN (recursion guard). workflow_dispatch is the
+          # documented exception that does fire — kick CodeQL explicitly so
+          # its required status check posts and auto-merge can resolve.
+          gh workflow run codeql.yaml --ref "$branch"
 ...
