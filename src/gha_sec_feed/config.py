@@ -146,6 +146,17 @@ class AppSettings(BaseSettings):
         ),
     )
 
+    vendor_include: _CsvList = Field(
+        default_factory=list,
+        description=(
+            "CSV list of CPE-derived vendor names; a row passes if it shares "
+            "at least one vendor (case-insensitive). Empty list = no vendor "
+            "filter. KEV rows have empty `vendors` by default and are "
+            "rejected when this filter is set — use `kev_only` for an "
+            "orthogonal KEV-keeping path."
+        ),
+    )
+
     keywords: _CsvList = Field(
         default_factory=list,
         description=(
