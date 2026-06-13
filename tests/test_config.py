@@ -24,6 +24,7 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch):
         "GSF_KEV_ONLY",
         "GSF_CWE_INCLUDE",
         "GSF_KEYWORDS",
+        "GSF_VENDOR_INCLUDE",
     ):
         monkeypatch.delenv(var, raising=False)
     reset_settings_cache()
@@ -137,6 +138,7 @@ def test_filter_knobs_default_to_no_filter():
     assert s.kev_only is False
     assert s.cwe_include == []
     assert s.keywords == []
+    assert s.vendor_include == []
 
 
 def test_filter_knobs_parsed_from_env_vars(monkeypatch: pytest.MonkeyPatch):
@@ -147,12 +149,14 @@ def test_filter_knobs_parsed_from_env_vars(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("GSF_KEV_ONLY", "true")
     monkeypatch.setenv("GSF_CWE_INCLUDE", "CWE-79,CWE-200")
     monkeypatch.setenv("GSF_KEYWORDS", "github,docker,rust")
+    monkeypatch.setenv("GSF_VENDOR_INCLUDE", "python,kubernetes")
 
     s = AppSettings()
     assert s.severity_min == "high"
     assert s.kev_only is True
     assert s.cwe_include == ["CWE-79", "CWE-200"]
     assert s.keywords == ["github", "docker", "rust"]
+    assert s.vendor_include == ["python", "kubernetes"]
 
 
 def test_keywords_csv_strips_whitespace_and_drops_empty_segments(

@@ -18,6 +18,18 @@ consumers can filter by free-text keywords and by weakness category
 without re-fetching upstream. Both fields default to empty values, so
 v1.0.0 callers stay valid and v1.0.0 consumers reading v1.1.0 rows see
 extra keys they can safely ignore.
+
+Schema 1.2.0 adds CPE-derived ``vendors`` and filter-derived
+``keywords_matched`` to :class:`FeedRow`. ``vendors`` carries
+authoritative product-affiliation signal that text-based filtering
+can't (e.g. ``cpe:2.3:a:python:python:*`` vs ``cpe:2.3:a:tautulli:*``).
+``keywords_matched`` is the subset of the producer's configured
+``settings.keywords`` that matched a row's ``id + description``, so
+downstream consumers see an audit trail for filter hits. Both fields
+default ``[]`` so prior callers stay valid; the
+``keywords_matched`` semantic is per-producer-run and distinct from
+the eval-side ``matched_keywords`` field on C2 (which reflects
+``stack_keywords`` matches against ``refs``).
 """
 
 from __future__ import annotations
@@ -26,7 +38,7 @@ from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-FEED_SCHEMA_VERSION: Final[str] = "1.1.0"
+FEED_SCHEMA_VERSION: Final[str] = "1.2.0"
 
 Severity = Literal["critical", "high", "medium", "low", "unknown"]
 SourceSlug = Literal["nvd", "cisa-kev"]
@@ -59,11 +71,13 @@ class FeedRow(BaseModel):
     epss: Annotated[float, Field(ge=0.0, le=1.0)] | None
     id: str
     kev: bool
+    keywords_matched: list[str] = []
     published: str  # ISO-8601 Z UTC
     refs: Annotated[list[str], Field(min_length=1)]
     schema_version: str = FEED_SCHEMA_VERSION
     severity: Severity
     source: SourceSlug
+    vendors: list[str] = []
 
 
 class FeedMeta(BaseModel):

@@ -29,7 +29,11 @@ Per-row C1 shape:
   "epss": null,
   "kev": true,
   "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-12345"],
-  "schema_version": "1.0.0"
+  "description": "SQL injection in /api/v1/users",
+  "cwes": ["CWE-89"],
+  "vendors": ["python"],
+  "keywords_matched": ["fastapi"],
+  "schema_version": "1.2.0"
 }
 ```
 
@@ -45,7 +49,9 @@ Per-row C1 shape:
 | `refs` | Array of authoritative URLs (≥ 1) |
 | `description` | Free-text summary (English; v1.1.0+) |
 | `cwes` | Array of CWE-prefixed identifiers (v1.1.0+) |
-| `schema_version` | `"1.1.0"` — additive bumps stay backwards-compatible |
+| `vendors` | CPE-derived vendor names, lowercased (v1.2.0+; empty for KEV rows and fresh CVEs awaiting CPE analysis) |
+| `keywords_matched` | Subset of the producer's configured `keywords` that matched `id + description` (v1.2.0+; preserves caller's casing; per-producer-run semantic — distinct from any C2-side `matched_keywords` enrichment) |
+| `schema_version` | `"1.2.0"` — additive bumps stay backwards-compatible |
 
 `data/feed-meta.json` ships sidecar metadata: `sources`, `last_run`,
 `schema_version`, `item_count`.
@@ -72,6 +78,7 @@ jobs:
       severity_min: 'high'                    # critical/high/medium/low/unknown
       # kev_only: true                        # optional
       # cwe_include: 'CWE-79,CWE-200'         # optional
+      # vendor_include: 'python,kubernetes'   # CPE-derived; KEV rejected when set
       # out_dir: 'data'                       # default
 ```
 
@@ -80,11 +87,14 @@ caller's repo and auto-merges a `chore(data)` PR with the refresh.
 
 ## Showcase scope
 
-`data/feed.jsonl` on this repo is filtered with a fixed qte77-stack
-keyword set —
-`github,python,docker,npm,rust,pip,pypi,node,typescript,cargo,uv,httpx,pydantic,markdown,codeql` —
-to prove the filter on real CVEs. Consumers who want a canonical
-superset feed should invoke the reusable workflow with `keywords: ''`
+`data/feed.jsonl` on this repo is filtered with a tightened
+qte77-stack keyword set —
+`github actions,docker image,docker container,kubernetes,pypi,pip install,nodejs,node.js,typescript,cargo crate,uv-python,httpx,pydantic,fastapi,codeql` —
+to prove the filter on real CVEs. Multi-word phrases lean on the
+word-boundary regex; the tightening was driven by ~46% FP rate from
+ambiguous bare-language tokens (`python`, `node`, `rust`) in the
+2026-06-05 showcase run. Consumers who want a canonical superset feed
+should invoke the reusable workflow with `keywords: ''`
 (producer-is-neutral default) and apply their own scope.
 
 ## Local development

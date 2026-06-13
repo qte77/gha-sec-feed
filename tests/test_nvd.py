@@ -156,6 +156,34 @@ def test_fetch_returns_empty_cwes_when_weaknesses_field_absent(
     assert rows["CVE-2026-1003"].cwes == []
 
 
+def test_fetch_extracts_vendors_dedupes_and_skips_wildcards(
+    mock_http: dict[str, Any],
+):
+    # CVE-2026-1001's fixture lists `python` twice, `apache` once, and a
+    # wildcard `*` vendor — output must be ["python", "apache"]: dedup
+    # preserving first-occurrence order, wildcard skipped. Catches a
+    # blind append, a wrong CPE-split index, and an out-of-order dedup.
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert rows["CVE-2026-1001"].vendors == ["python", "apache"]
+
+
+def test_fetch_extracts_single_vendor_per_cve(mock_http: dict[str, Any]):
+    # CVE-2026-1002 has just `nginx`. Single-element case catches
+    # "only emit when >1 vendor" filtering and off-by-one indexing.
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert rows["CVE-2026-1002"].vendors == ["nginx"]
+
+
+def test_fetch_returns_empty_vendors_when_configurations_field_absent(
+    mock_http: dict[str, Any],
+):
+    # CVE-2026-1003 omits `configurations`. Catches KeyError /
+    # AttributeError against missing upstream fields — fresh NVD CVEs
+    # routinely ship before CPE assignment completes.
+    rows = {r.id: r for r in fetch(SINCE)}
+    assert rows["CVE-2026-1003"].vendors == []
+
+
 def test_extract_refs_passes_through_reference_urls():
     cve = {
         "id": "CVE-2026-9999",

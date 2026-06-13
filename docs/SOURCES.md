@@ -24,6 +24,49 @@ its inputs to the corresponding `GSF_*` env vars on the producer step.
 This repo's own cron uses a qte77-stack keyword set as a **showcase**
 of the filter capability — see [README §Showcase scope](../README.md#showcase-scope).
 
+## Schema 1.2.0
+
+Additive over 1.1.0: rows gain `vendors` (CPE-derived vendor names,
+lowercased) and `keywords_matched` (audit trail of which configured
+`keywords` matched). Both default to `[]` so v1.0.0 / v1.1.0 consumers
+reading v1.2.0 rows see extra keys they can ignore.
+
+`vendors` is extracted from NVD's `configurations[].nodes[].cpeMatch[]`
+by splitting CPE 2.3 criteria on `:` and taking index 3. Wildcard `*`
+and dash `-` placeholders are skipped; dedup preserves NVD's
+first-occurrence order. All CPE parts (`a` / `h` / `o`) are included;
+the producer's `vendor_include` filter narrows at the call site. KEV
+rows ship with `vendors=[]` (the catalog carries no CPE) so they are
+rejected when `vendor_include` is set — downstream callers wanting
+"KEV ∪ vendor scope" use `kev_only` orthogonally.
+
+Fresh NVD CVEs occasionally ship before CPE analysis completes and
+arrive with `vendors=[]`; the trade-off is symmetric with the existing
+"missing CWE = reject" semantic on `cwe_include`. Documented here so
+consumers know what `vendor_include` excludes.
+
+`keywords_matched` is populated per-producer-run: the subset of the
+producer's resolved `settings.keywords` that hit the row's
+`id + description` (settings form preserved, so casing matches the
+caller's input). The same row consumed by two reusable-workflow
+callers with different `keywords:` inputs carries different
+`keywords_matched` arrays — this is **not** a canonical row attribute.
+
+`keywords_matched` is **distinct from C2's `matched_keywords`** as
+emitted by downstream evaluators like `gha-sec-feed-eval`: C2's field
+reflects the eval's `stack_keywords` matched against `refs`. Same
+audit-trail purpose, different scope; the producer's field is
+forwarded through unchanged.
+
+`products` is a deliberate omission per YAGNI. CPE-derived product
+names would be extracted from index 4 of the same `cpe:2.3:` split
+and would mirror the `vendors` flow 1:1. Track via a tag/issue when
+a concrete consumer asks.
+
+The producer's filter gains a fifth knob — `vendor_include` (CSV,
+intersection semantics, case-insensitive) — mirroring `cwe_include`'s
+surface. Reusable workflow input + `GSF_VENDOR_INCLUDE` env var added.
+
 ## Active in v0.1.0
 
 | `source` slug | Catalog | Endpoint + 1p docs | Auth | Licence | Attribution required |

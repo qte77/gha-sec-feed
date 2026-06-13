@@ -75,6 +75,36 @@ def _extract_cwes(cve: dict[str, Any]) -> list[str]:
     return cwes
 
 
+def _extract_vendors(cve: dict[str, Any]) -> list[str]:
+    """Pull vendor names from ``configurations[].nodes[].cpeMatch[]``, deduped.
+
+    NVD CPE 2.3 criteria are colon-delimited: ``cpe:2.3:<part>:<vendor>
+    :<product>:...``. Index 3 (after split) is the vendor. Wildcard
+    ``*`` and dash ``-`` are NVD's "any" / "not applicable" placeholders
+    — skipped. Dedup preserves first-occurrence order so consumers see
+    NVD's primary-then-secondary ordering. All CPE parts (``a`` / ``h``
+    / ``o``) are included; downstream callers narrow via ``vendor_include``
+    if they want application-only matching.
+
+    A symmetric ``_extract_products`` would walk the same path taking
+    index 4 of the CPE split; add when a concrete consumer asks.
+    """
+    vendors: list[str] = []
+    seen: set[str] = set()
+    for config in cve.get("configurations", []):
+        for node in config.get("nodes", []):
+            for match in node.get("cpeMatch", []):
+                parts = match.get("criteria", "").split(":")
+                if len(parts) < 4:
+                    continue
+                vendor = parts[3]
+                if vendor in {"*", "-"} or vendor in seen:
+                    continue
+                vendors.append(vendor)
+                seen.add(vendor)
+    return vendors
+
+
 def _extract_refs(cve: dict[str, Any]) -> list[str]:
     """Return the ``references[].url`` list, falling back to the NVD detail page.
 
@@ -104,6 +134,7 @@ def _to_row(cve: dict[str, Any]) -> FeedRow:
         refs=_extract_refs(cve),
         description=_extract_description(cve),
         cwes=_extract_cwes(cve),
+        vendors=_extract_vendors(cve),
     )
 
 

@@ -26,6 +26,7 @@ def _row(**overrides: Any) -> FeedRow:
         "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-0001"],
         "description": "",
         "cwes": [],
+        "vendors": [],
     }
     base.update(overrides)
     return FeedRow.model_validate(base)
@@ -151,6 +152,37 @@ def test_passes_cwe_include_case_insensitive():
     assert _passes(_row(cwes=["CWE-79"]), s) is True
 
 
+# ---------- vendor_include predicate -----------------------------------------
+
+
+def test_passes_vendor_include_admits_when_any_overlap():
+    # Set intersection semantics — at least one shared vendor admits.
+    # Catches a subset-vs-equality bug. `product_include` would mirror this
+    # block 1:1 against `row.products` — add when that field exists.
+    s = _settings(vendor_include=["python", "apache"])
+    assert _passes(_row(vendors=["python", "tautulli"]), s) is True
+
+
+def test_passes_vendor_include_rejects_when_no_overlap():
+    s = _settings(vendor_include=["python"])
+    assert _passes(_row(vendors=["tautulli", "draytek"]), s) is False
+
+
+def test_passes_vendor_include_rejects_row_with_empty_vendors_when_filter_set():
+    # Catches "missing data = pass". Fresh NVD CVEs ship before CPE
+    # analysis completes, leaving `vendors=[]`. KEV rows also have
+    # `vendors=[]` by default. With the filter set, both must reject.
+    s = _settings(vendor_include=["python"])
+    assert _passes(_row(vendors=[]), s) is False
+
+
+def test_passes_vendor_include_case_insensitive():
+    # CPE vendor names are lowercase by convention but callers may
+    # configure with any case — both sides normalise.
+    s = _settings(vendor_include=["Python"])
+    assert _passes(_row(vendors=["python"]), s) is True
+
+
 # ---------- kev_only predicate -----------------------------------------------
 
 
@@ -179,6 +211,36 @@ def test_apply_filters_default_settings_is_identity():
     # Producer-is-neutral default. Catches an accidental default-on filter.
     rows = [_row(id="CVE-A"), _row(id="CVE-B", kev=True), _row(id="CVE-C")]
     assert apply_filters(rows, _settings()) == rows
+
+
+def test_apply_filters_populates_keywords_matched_for_admitted_rows():
+    # When settings.keywords is non-empty, admitted rows carry the
+    # actual matching subset on their `keywords_matched` field. Catches
+    # the impl that admits rows without populating the audit trail.
+    s = _settings(keywords=["github", "python"])
+    row = _row(description="GitHub Actions workflow flaw in python tooling")
+    [out] = apply_filters([row], s)
+    assert out.keywords_matched == ["github", "python"]
+
+
+def test_apply_filters_keywords_matched_omits_unmatched_keywords():
+    # The audit trail must include ONLY the keywords that actually hit;
+    # configured-but-unmatched keywords are excluded. Catches a copy-
+    # the-whole-settings-list impl.
+    s = _settings(keywords=["github", "python", "kubernetes"])
+    row = _row(description="GitHub Actions workflow flaw")
+    [out] = apply_filters([row], s)
+    assert out.keywords_matched == ["github"]
+
+
+def test_apply_filters_keywords_matched_preserves_settings_form_strings():
+    # The audit trail stores the keyword strings as the caller configured
+    # them (settings form), not the lowercased haystack form. Catches an
+    # impl that round-trips through .lower() and loses casing.
+    s = _settings(keywords=["GitHub", "Python"])
+    row = _row(description="github actions flaw in python")
+    [out] = apply_filters([row], s)
+    assert out.keywords_matched == ["GitHub", "Python"]
 
 
 def test_apply_filters_preserves_input_order():
