@@ -29,6 +29,11 @@ on:
         required: false
         type: string
         default: ''
+      vendor_include:
+        description: 'CSV CPE-derived vendor names (intersected with each row''s vendors). Empty = no vendor filter. KEV rows have empty vendors and are rejected when set.'
+        required: false
+        type: string
+        default: ''
       out_dir:
         description: 'Output directory for feed.jsonl + feed-meta.json.'
         required: false
@@ -57,6 +62,11 @@ on:
         default: false
       cwe_include:
         description: 'CSV CWE identifiers. Empty = no filter.'
+        required: false
+        type: string
+        default: ''
+      vendor_include:
+        description: 'CSV CPE-derived vendor names. Empty = no filter. KEV rows rejected when set.'
         required: false
         type: string
         default: ''
@@ -94,6 +104,7 @@ jobs:
       GSF_SEVERITY_MIN: ${{ inputs.severity_min || 'unknown' }}
       GSF_KEV_ONLY: ${{ inputs.kev_only && 'true' || 'false' }}
       GSF_CWE_INCLUDE: ${{ inputs.cwe_include }}
+      GSF_VENDOR_INCLUDE: ${{ inputs.vendor_include }}
       GSF_OUT_DIR: ${{ inputs.out_dir || 'data' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -113,7 +124,7 @@ jobs:
           # form despite their docs claiming `.000` is required (#27).
           since="${SINCE_OVERRIDE:-$(date -u -d '7 days ago' +%FT%TZ)}"
           echo "Fetching since: $since"
-          echo "Filters: severity_min=$GSF_SEVERITY_MIN, kev_only=$GSF_KEV_ONLY, cwe_include=${GSF_CWE_INCLUDE:-(empty)}, keywords=${GSF_KEYWORDS:-(empty)}"
+          echo "Filters: severity_min=$GSF_SEVERITY_MIN, kev_only=$GSF_KEV_ONLY, cwe_include=${GSF_CWE_INCLUDE:-(empty)}, vendor_include=${GSF_VENDOR_INCLUDE:-(empty)}, keywords=${GSF_KEYWORDS:-(empty)}"
           uv run python -m gha_sec_feed --out "$GSF_OUT_DIR" --since "$since"
 
       - name: Open auto-merged PR if data changed
