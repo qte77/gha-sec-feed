@@ -75,26 +75,33 @@ def _to_row(vuln: dict[str, Any], cve: str, published: str) -> FeedRow:
 
 
 def fetch(since: str) -> list[FeedRow]:
-    """Fetch MSRC CVRF vulnerabilities released on/after ``since`` (ISO-Z UTC).
+    """Fetch the latest monthly CVRF document and map its CVE vulnerabilities.
 
-    Lists monthly updates, pulls each document whose release date is within the
-    window, and emits one row per CVE-bearing ``Vulnerability`` (``ADV``-style
-    non-CVE advisories are skipped). Monthly cadence means a weekly window
-    usually matches zero or one document.
+    MSRC publishes one CVRF document per month (Patch Tuesday), so the
+    producer's narrow weekly ``since`` window would usually match none. The
+    fetcher therefore always pulls the **latest** monthly document (by release
+    date) and emits one row per CVE-bearing ``Vulnerability`` (``ADV``-style
+    non-CVE advisories are skipped). The weekly re-emit is idempotent and
+    downstream dedup (NVD wins on ``cve_id``) collapses the overlap. ``since``
+    is accepted for signature parity but does not narrow the selection.
     """
     updates = loads(http.get(f"{_BASE}/updates"))
-    rows: list[FeedRow] = []
-    for entry in updates.get("value", []):
-        release = entry.get("CurrentReleaseDate", "")
-        doc_id = entry.get("ID")
-        if not doc_id or (release and release[:10] < since[:10]):
-            continue
-        doc = loads(http.get(f"{_BASE}/cvrf/{doc_id}"))
-        published = _normalize_published(
-            (doc.get("DocumentTracking") or {}).get("CurrentReleaseDate", release)
+    entries = [e for e in updates.get("value", []) if e.get("ID")]
+    if not entries:
+        return []
+    # Always pull the single latest monthly document; do not narrow by the
+    # 7-day `since`. The weekly re-emit is idempotent and downstream dedup
+    # (NVD wins on cve_id) collapses the overlap.
+    latest = max(entries, key=lambda e: e.get("CurrentReleaseDate", ""))
+    doc = loads(http.get(f"{_BASE}/cvrf/{latest['ID']}"))
+    published = _normalize_published(
+        (doc.get("DocumentTracking") or {}).get(
+            "CurrentReleaseDate", latest.get("CurrentReleaseDate", "")
         )
-        for vuln in doc.get("Vulnerability", []):
-            cve = vuln.get("CVE") or ""
-            if cve.startswith("CVE-"):
-                rows.append(_to_row(vuln, cve, published))
+    )
+    rows: list[FeedRow] = []
+    for vuln in doc.get("Vulnerability", []):
+        cve = vuln.get("CVE") or ""
+        if cve.startswith("CVE-"):
+            rows.append(_to_row(vuln, cve, published))
     return rows

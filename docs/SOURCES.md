@@ -87,16 +87,23 @@ entry. Phase 2d (CLI assembly) wires it in automatically via a static
 sources manifest in the writer/CLI layer so it travels with every
 published artifact.
 
-### MSRC reachability caveat (Azure WAF)
+### MSRC notes (reachability, cadence, scope)
 
-The MSRC CVRF API returns **HTTP 999** (Azure WAF) to datacenter IPs and could
-not be live-verified during development; GitHub-hosted (Azure) runners may be
-blocked too. The `msrc` fetcher is therefore built against the **documented**
-CVRF v3.0 shape and runs behind the producer's **graceful degradation**: if any
-single source (MSRC included) fails, it is logged and skipped — contributing no
-rows rather than failing the whole refresh (the run only errors if *every*
-source fails). Reachability from the cron is confirmed by observing whether
-`source: msrc` rows appear after a real run.
+- **Reachability**: the MSRC CVRF API returns **HTTP 999** (Azure WAF) to some
+  datacenter IPs (e.g. the dev environment), but a verification run confirmed it
+  **is reachable from GitHub Actions runners**. The fetcher still runs behind the
+  producer's **graceful degradation** — if any source fails it is logged and
+  skipped, and the run only errors if *every* source fails.
+- **Cadence**: MSRC publishes one CVRF document per month (Patch Tuesday), so the
+  fetcher pulls the **latest monthly document** (not the narrow weekly `since`
+  window) and re-emits it each run; downstream dedup (NVD wins on `cve_id`)
+  collapses the overlap.
+- **Scope**: MSRC covers Microsoft *enterprise/desktop products* (Windows,
+  Office, Exchange, .NET, Azure, Edge) — GitHub, OSS, and Microsoft's *open
+  source* (TypeScript, Playwright, pyright) are covered by **GHSA**, not MSRC.
+  MSRC rows carry empty `vendors`, so this repo's own showcase `vendor_include`
+  filter excludes them; MSRC is kept for **downstream reusable-workflow
+  consumers** who want raw Microsoft-product advisories (no vendor filter).
 
 ## Deferred (restore on first concrete request)
 
