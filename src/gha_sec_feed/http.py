@@ -29,6 +29,7 @@ _ALLOWED_HOSTS: Final[frozenset[str]] = frozenset(
         "services.nvd.nist.gov",
         "www.cisa.gov",
         "api.github.com",
+        "api.msrc.microsoft.com",
     }
 )
 

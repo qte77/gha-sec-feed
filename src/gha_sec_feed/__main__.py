@@ -12,12 +12,14 @@ have to scrape upstream pages for legal notices.
 from __future__ import annotations
 
 from argparse import ArgumentParser
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from warnings import warn
 
 from gha_sec_feed import __version__, writer
 from gha_sec_feed.config import settings
-from gha_sec_feed.fetchers import ghsa, kev, nvd
+from gha_sec_feed.fetchers import ghsa, kev, msrc, nvd
 from gha_sec_feed.filter import apply_filters
 from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedMeta, FeedRow, SourceEntry
 
@@ -44,6 +46,13 @@ _SOURCES_MANIFEST: list[SourceEntry] = [
         url="https://github.com/advisories",
         license="CC-BY-4.0",
         attribution="GitHub Advisory Database — CC BY 4.0; per-record advisory URL carried in each row's refs.",
+    ),
+    SourceEntry(
+        id="msrc",
+        name="Microsoft Security Response Center (MSRC)",
+        url="https://msrc.microsoft.com/update-guide",
+        license="proprietary",
+        attribution="Microsoft Security Response Center — © Microsoft Corporation; per-record update-guide URL carried in each row's refs.",
     ),
 ]
 
@@ -93,6 +102,39 @@ def _build_meta(rows: list[FeedRow]) -> FeedMeta:
     )
 
 
+def _fetch_all(since: str) -> list[list[FeedRow]]:
+    """Fetch every source in precedence order, degrading on per-source failure.
+
+    A source that raises is logged and contributes no rows, so one upstream
+    outage (e.g. an MSRC WAF 999, or NVD 5xx after retries) does not sink the
+    whole refresh. If *every* source fails, raise — better to leave the prior
+    feed intact than to overwrite it with an empty one. Order matches
+    :func:`_merge` precedence: NVD, GHSA, MSRC, then KEV.
+    """
+    sources: list[tuple[str, Callable[[], list[FeedRow]]]] = [
+        ("nvd", lambda: nvd.fetch(since)),
+        ("ghsa", lambda: ghsa.fetch(since)),
+        ("msrc", lambda: msrc.fetch(since)),
+        ("cisa-kev", kev.fetch),
+    ]
+    results: list[list[FeedRow]] = []
+    failures = 0
+    for name, fetch_source in sources:
+        try:
+            results.append(fetch_source())
+        except Exception as exc:  # degrade: one source must not sink the run
+            failures += 1
+            results.append([])
+            warn(
+                f"source {name!r} failed and was skipped: {type(exc).__name__}: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+    if failures == len(sources):
+        raise RuntimeError("all sources failed; refusing to overwrite the feed")
+    return results
+
+
 def main(argv: list[str] | None = None) -> None:
     """CLI entrypoint: fetch, merge, write."""
     parser = ArgumentParser(prog="gha_sec_feed")
@@ -110,10 +152,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    nvd_rows = nvd.fetch(args.since)
-    ghsa_rows = ghsa.fetch(args.since)
-    kev_rows = kev.fetch()
-    merged = _merge(nvd_rows, ghsa_rows, kev_rows)
+    nvd_rows, ghsa_rows, msrc_rows, kev_rows = _fetch_all(args.since)
+    merged = _merge(nvd_rows, ghsa_rows, msrc_rows, kev_rows)
     filtered = apply_filters(merged, settings())
     meta = _build_meta(filtered)
     writer.write_feed(filtered, meta, args.out)
