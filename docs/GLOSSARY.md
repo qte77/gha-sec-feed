@@ -28,7 +28,7 @@ the brief and deferred until a concrete consumer needs them.
 
 | Term | Meaning |
 |---|---|
-| **C1** | This producer's external contract — `data/feed.jsonl` row shape + `data/feed-meta.json`. Locked at `schema_version` v1.0.0. |
+| **C1** | This producer's external contract — `data/feed.jsonl` row shape + `data/feed-meta.json`. Current `schema_version` 1.2.0, additive-compatible with 1.0.0 / 1.1.0; see [`SCHEMA.md`](SCHEMA.md). |
 | **JSONL** | [JSON Lines](https://jsonlines.org/) — newline-delimited JSON; one row per line; aka **NDJSON** |
 | **NDJSON** | [Newline-Delimited JSON](http://ndjson.org/) (= JSONL) |
 

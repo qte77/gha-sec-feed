@@ -10,9 +10,11 @@ See [`GLOSSARY.md`](GLOSSARY.md) for acronym expansions.
 
 ## Schema + filter capability (v0.2.0)
 
-C1 is at **schema 1.1.0** as of v0.2.0. Additive over 1.0.0: rows gain
-`description` (English free text) and `cwes` (CWE-prefixed identifiers).
-v1.0.0 consumers reading v1.1.0 rows see extra keys they can ignore.
+C1 reached **schema 1.1.0** in v0.2.0 (current is **1.2.0** — see
+[`SCHEMA.md`](SCHEMA.md) for the canonical field table and version history).
+Additive over 1.0.0: rows gain `description` (English free text) and `cwes`
+(CWE-prefixed identifiers). v1.0.0 consumers reading later rows see extra keys
+they can ignore.
 
 The producer applies an optional, env-driven row filter post-merge.
 Four knobs — `severity_min`, `kev_only`, `cwe_include`, `keywords` —
@@ -88,7 +90,7 @@ published artifact.
 | `source` slug | Catalog | Endpoint + 1p docs | Licence | Attribution / blockers | Why deferred |
 |---|---|---|---|---|---|
 | `epss` | FIRST.org EPSS | `https://api.first.org/data/v1/epss` · [API docs](https://www.first.org/epss/api) | Unclear (free public grant; "All Rights Reserved" copyright on the site) | Soft request: cite [https://www.first.org/epss](https://www.first.org/epss) | Orthogonal probability score; useful once we have a consumer who ranks |
-| `ghsa` | GitHub Security Advisories | GraphQL `securityAdvisories` on `https://api.github.com/graphql` · [API reference](https://docs.github.com/en/graphql/reference/queries#securityadvisories) | [CC-BY 4.0](https://github.com/github/advisory-database) | **Per-record `source_url`** to `https://github.com/advisories/GHSA-xxxx` required | Ecosystem-tagged (npm / PyPI / Go / RubyGems) → better stack mapping than NVD for downstream filtering |
+| `ghsa` | GitHub Security Advisories | REST `GET https://api.github.com/advisories?type=reviewed` · [API reference](https://docs.github.com/en/rest/security-advisories/global-advisories) | [CC-BY 4.0](https://github.com/github/advisory-database) | **Per-record `source_url`** (`html_url`) to `https://github.com/advisories/GHSA-xxxx` required | Ecosystem-tagged (npm / PyPI / Go / RubyGems) → better stack mapping than NVD for downstream filtering |
 | `osv` | Google OSV.dev | `https://api.osv.dev/v1/query` · [API docs](https://google.github.io/osv.dev/api/) | Apache-2.0 for the platform; per-record license follows upstream (e.g., GHSA → CC-BY 4.0) | Inherits upstream attribution; cite OSV at `https://osv.dev/` | Distributed vuln DB; OSV-Scanner consumes the same format |
 | `redhat` | Red Hat Security Data API | `https://access.redhat.com/hydra/rest/securitydata/cve.json` · [API docs](https://access.redhat.com/articles/red_hat_security_data_api) | [CC-BY 4.0](https://access.redhat.com/security/data) | **Per-record** attribution to `https://access.redhat.com/security/cve/<id>` required | RHEL / UBI advisories — needed when Docker base images are RHEL/UBI |
 | `ubuntu` | Ubuntu Security Notices | `https://ubuntu.com/security/notices.json` · [catalog homepage](https://ubuntu.com/security/notices) | **Unclear** — no open-data licence found; notice text is © Canonical Ltd. | **Inquiry to Canonical legal required before adding** | Same for Ubuntu base images |
