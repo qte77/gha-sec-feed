@@ -146,26 +146,21 @@ jobs:
           # commit`: server-created commits are web-flow signed, satisfying
           # the branch ruleset's `required_signatures` rule. A runner
           # `git commit` is unsigned and makes the auto-PR unmergeable under
-          # GraphQL (#45). jq builds each request body so nested arrays
-          # serialise correctly.
+          # GraphQL (#45). File contents are inlined into the tree via jq
+          # --rawfile (read from disk, not shell args) so a large feed.jsonl
+          # doesn't blow ARG_MAX; the tree JSON streams to gh api over stdin
+          # and GitHub creates the blobs.
           repo="${{ github.repository }}"
           base_sha=$(gh api "repos/$repo/git/refs/heads/main" --jq '.object.sha')
           base_tree=$(gh api "repos/$repo/git/commits/$base_sha" --jq '.tree.sha')
 
-          mk_blob() {  # $1=path -> echoes created blob sha
-            jq -n --arg c "$(base64 -w0 "$1")" '{encoding:"base64",content:$c}' \
-              | gh api -X POST "repos/$repo/git/blobs" --input - --jq '.sha'
-          }
-          jsonl_sha=$(mk_blob "$GSF_OUT_DIR/feed.jsonl")
-          meta_sha=$(mk_blob "$GSF_OUT_DIR/feed-meta.json")
-
           tree_sha=$(jq -n \
             --arg base "$base_tree" \
-            --arg p1 "$GSF_OUT_DIR/feed.jsonl"     --arg s1 "$jsonl_sha" \
-            --arg p2 "$GSF_OUT_DIR/feed-meta.json" --arg s2 "$meta_sha" \
+            --arg p1 "$GSF_OUT_DIR/feed.jsonl"     --rawfile c1 "$GSF_OUT_DIR/feed.jsonl" \
+            --arg p2 "$GSF_OUT_DIR/feed-meta.json" --rawfile c2 "$GSF_OUT_DIR/feed-meta.json" \
             '{base_tree:$base, tree:[
-               {path:$p1,mode:"100644",type:"blob",sha:$s1},
-               {path:$p2,mode:"100644",type:"blob",sha:$s2}]}' \
+               {path:$p1, mode:"100644", type:"blob", content:$c1},
+               {path:$p2, mode:"100644", type:"blob", content:$c2}]}' \
             | gh api -X POST "repos/$repo/git/trees" --input - --jq '.sha')
 
           commit_sha=$(jq -n \
