@@ -1,4 +1,4 @@
-.PHONY: install fmt lint test run validate clean
+.PHONY: install fmt lint test test-cov audit run validate bump-patch bump-minor bump-major clean
 
 install:
 	uv sync --dev
@@ -14,10 +14,25 @@ lint:
 test:
 	uv run pytest
 
+test-cov:
+	uv run pytest --cov-fail-under=70
+
+audit:
+	uv run pip-audit --skip-editable
+
 run:
 	uv run python -m gha_sec_feed --out data
 
-validate: lint test
+validate: lint audit test-cov
+
+bump-patch:
+	uv run bump-my-version bump patch
+
+bump-minor:
+	uv run bump-my-version bump minor
+
+bump-major:
+	uv run bump-my-version bump major
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .coverage coverage.xml htmlcov dist build *.egg-info
