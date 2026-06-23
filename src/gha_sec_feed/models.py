@@ -35,6 +35,9 @@ Schema 1.3.0 adds the ``ghsa`` source slug (GitHub Security Advisories). No
 new field is introduced — the advisory's ``html_url`` rides in ``refs`` as the
 required CC-BY 4.0 per-record attribution. The bump signals the new ``source``
 value so consumers that switch on ``source`` know to expect it.
+
+Schema 1.4.0 adds the ``msrc`` source slug (Microsoft Security Response Center
+CVRF). Same additive shape — no new field, only a new ``source`` value.
 """
 
 from __future__ import annotations
@@ -43,10 +46,10 @@ from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-FEED_SCHEMA_VERSION: Final[str] = "1.3.0"
+FEED_SCHEMA_VERSION: Final[str] = "1.4.0"
 
 Severity = Literal["critical", "high", "medium", "low", "unknown"]
-SourceSlug = Literal["nvd", "cisa-kev", "ghsa"]
+SourceSlug = Literal["nvd", "cisa-kev", "ghsa", "msrc"]
 
 
 class SourceEntry(BaseModel):

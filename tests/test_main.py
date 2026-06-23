@@ -147,6 +147,7 @@ def test_main_writes_feed_and_meta_to_out_dir(tmp_path: Path, monkeypatch: pytes
     ]
     monkeypatch.setattr(cli.nvd, "fetch", lambda _since: nvd_rows)
     monkeypatch.setattr(cli.ghsa, "fetch", lambda _since: [])
+    monkeypatch.setattr(cli.msrc, "fetch", lambda _since: [])
     monkeypatch.setattr(cli.kev, "fetch", lambda: kev_rows)
 
     main(["--out", str(tmp_path), "--since", "2026-05-01T00:00:00Z"])
@@ -158,7 +159,7 @@ def test_main_writes_feed_and_meta_to_out_dir(tmp_path: Path, monkeypatch: pytes
 
     meta = loads((tmp_path / "feed-meta.json").read_text(encoding="utf-8"))
     assert meta["item_count"] == 2
-    assert {s["id"] for s in meta["sources"]} == {"nvd", "cisa-kev", "ghsa"}
+    assert {s["id"] for s in meta["sources"]} == {"nvd", "cisa-kev", "ghsa", "msrc"}
 
 
 def test_main_creates_out_dir_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -167,6 +168,7 @@ def test_main_creates_out_dir_when_missing(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(cli.nvd, "fetch", lambda _since: [_row("CVE-1")])
     monkeypatch.setattr(cli.kev, "fetch", lambda: [])
     monkeypatch.setattr(cli.ghsa, "fetch", lambda _since: [])
+    monkeypatch.setattr(cli.msrc, "fetch", lambda _since: [])
     out = tmp_path / "nested" / "out"
 
     main(["--out", str(out), "--since", "2026-05-01T00:00:00Z"])
@@ -180,6 +182,7 @@ def test_main_default_out_dir_is_data(monkeypatch: pytest.MonkeyPatch, tmp_path:
     monkeypatch.setattr(cli.nvd, "fetch", lambda _s: [])
     monkeypatch.setattr(cli.kev, "fetch", lambda: [])
     monkeypatch.setattr(cli.ghsa, "fetch", lambda _since: [])
+    monkeypatch.setattr(cli.msrc, "fetch", lambda _since: [])
     monkeypatch.setattr(
         cli.writer,
         "write_feed",
@@ -207,6 +210,7 @@ def test_main_applies_settings_driven_filter_before_writing(
     monkeypatch.setattr(cli.nvd, "fetch", lambda _since: nvd_rows)
     monkeypatch.setattr(cli.kev, "fetch", lambda: [])
     monkeypatch.setattr(cli.ghsa, "fetch", lambda _since: [])
+    monkeypatch.setattr(cli.msrc, "fetch", lambda _since: [])
     monkeypatch.setenv("GSF_SEVERITY_MIN", "high")
     reset_settings_cache()
     try:
@@ -220,3 +224,34 @@ def test_main_applies_settings_driven_filter_before_writing(
         assert meta["item_count"] == 1
     finally:
         reset_settings_cache()
+
+
+# ---------- _fetch_all graceful degradation (PR-F) --------------------------
+
+
+def _raise(*_args: object, **_kwargs: object):
+    raise RuntimeError("upstream down")
+
+
+def test_fetch_all_skips_failed_source_and_keeps_others(
+    monkeypatch: pytest.MonkeyPatch, recwarn: pytest.WarningsRecorder
+):
+    # One source raising must not sink the run — it degrades to [] with a warning.
+    monkeypatch.setattr(cli.nvd, "fetch", lambda _s: [_row("CVE-N")])
+    monkeypatch.setattr(cli.ghsa, "fetch", _raise)
+    monkeypatch.setattr(cli.msrc, "fetch", lambda _s: [])
+    monkeypatch.setattr(cli.kev, "fetch", lambda: [])
+
+    nvd_rows, ghsa_rows, _msrc_rows, _kev_rows = cli._fetch_all("2026-05-01T00:00:00Z")
+
+    assert [r.id for r in nvd_rows] == ["CVE-N"]
+    assert ghsa_rows == []
+    assert any(issubclass(w.category, RuntimeWarning) for w in recwarn)
+
+
+@pytest.mark.filterwarnings("ignore:source ")
+def test_fetch_all_raises_when_every_source_fails(monkeypatch: pytest.MonkeyPatch):
+    for module in (cli.nvd, cli.ghsa, cli.msrc, cli.kev):
+        monkeypatch.setattr(module, "fetch", _raise)
+    with pytest.raises(RuntimeError, match="all sources failed"):
+        cli._fetch_all("2026-05-01T00:00:00Z")

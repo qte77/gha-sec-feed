@@ -21,14 +21,14 @@ in `src/gha_sec_feed/models.py` (`FEED_SCHEMA_VERSION`).
   "cwes": ["CWE-89"],
   "vendors": ["python"],
   "keywords_matched": ["fastapi"],
-  "schema_version": "1.3.0"
+  "schema_version": "1.4.0"
 }
 ```
 
 | Field | Meaning |
 |---|---|
 | `id` | Canonical CVE identifier (`CVE-YYYY-NNNNN`) |
-| `source` | `nvd`, `cisa-kev`, or `ghsa` (more sources may be added) |
+| `source` | `nvd`, `cisa-kev`, `ghsa`, or `msrc` (more sources may be added) |
 | `published` | ISO 8601 UTC timestamp |
 | `severity` | One of `critical`, `high`, `medium`, `low`, `unknown` |
 | `cvss` | Float 0.0–10.0; `null` if unknown |
@@ -39,7 +39,7 @@ in `src/gha_sec_feed/models.py` (`FEED_SCHEMA_VERSION`).
 | `cwes` | Array of CWE-prefixed identifiers (v1.1.0+) |
 | `vendors` | CPE-derived vendor names, lowercased (v1.2.0+; empty for KEV rows and fresh CVEs awaiting CPE analysis) |
 | `keywords_matched` | Subset of the producer's configured `keywords` that matched `id + description` (v1.2.0+; per-producer-run, preserves caller casing) |
-| `schema_version` | Current `"1.3.0"`; additive bumps stay backwards-compatible |
+| `schema_version` | Current `"1.4.0"`; additive bumps stay backwards-compatible |
 
 ## `feed-meta.json` sidecar
 
@@ -54,6 +54,7 @@ attribution), `last_run`, `schema_version`, `item_count`, `tool_version`.
 | 1.1.0 | `description`, `cwes` |
 | 1.2.0 | `vendors`, `keywords_matched` |
 | 1.3.0 | `ghsa` source slug (GitHub Security Advisories); advisory `html_url` carried in `refs` as CC-BY 4.0 attribution (no new field) |
+| 1.4.0 | `msrc` source slug (Microsoft Security Response Center CVRF); no new field |
 
 Every bump is **additive**: a consumer reading newer rows sees extra keys it can
 safely ignore, so older consumers keep working.
