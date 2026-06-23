@@ -9,6 +9,7 @@ See tracking issue #4.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from json import loads
 from typing import Any
@@ -105,6 +106,35 @@ def _extract_vendors(cve: dict[str, Any]) -> list[str]:
     return vendors
 
 
+# Host-anchored: only literal `github.com` qualifies, so look-alikes such as
+# `github.com.evil.com` or `raw.githubusercontent.com` never match. Captures
+# the `<org>` segment of `https://github.com/<org>/<repo>...`.
+_GITHUB_ORG_RE = re.compile(r"^https://github\.com/([^/]+)/")
+
+
+def _infer_vendors_from_refs(cve: dict[str, Any]) -> list[str]:
+    """Infer vendors from GitHub-org references when CPE analysis is absent.
+
+    Fresh NVD CVEs often arrive before CPE analysis completes, leaving
+    :func:`_extract_vendors` empty. GHSA-mirror references at
+    ``https://github.com/<org>/<repo>`` name the owning org, which usually
+    matches the eventual CPE vendor 1:1. Take the lowercased ``<org>``
+    segment, deduped, preserving first-occurrence order. Used only as a
+    fallback — CPE-derived vendors win when present.
+    """
+    vendors: list[str] = []
+    seen: set[str] = set()
+    for ref in cve.get("references", []):
+        m = _GITHUB_ORG_RE.match(ref.get("url", ""))
+        if m is None:
+            continue
+        org = m.group(1).lower()
+        if org and org not in seen:
+            vendors.append(org)
+            seen.add(org)
+    return vendors
+
+
 def _extract_refs(cve: dict[str, Any]) -> list[str]:
     """Return the ``references[].url`` list, falling back to the NVD detail page.
 
@@ -134,7 +164,7 @@ def _to_row(cve: dict[str, Any]) -> FeedRow:
         refs=_extract_refs(cve),
         description=_extract_description(cve),
         cwes=_extract_cwes(cve),
-        vendors=_extract_vendors(cve),
+        vendors=_extract_vendors(cve) or _infer_vendors_from_refs(cve),
     )
 
 
