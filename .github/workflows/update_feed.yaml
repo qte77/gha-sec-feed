@@ -92,6 +92,8 @@ jobs:
     env:
       NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Authenticates the producer's GHSA fetch (api.github.com): 60->1000/hr.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Filter knobs flow into pydantic-settings env vars on the producer.
       # Empty strings are treated as "no filter" by the producer's CSV parser.
       GSF_KEYWORDS: ${{ inputs.keywords }}

@@ -69,12 +69,13 @@ The producer's filter gains a fifth knob — `vendor_include` (CSV,
 intersection semantics, case-insensitive) — mirroring `cwe_include`'s
 surface. Reusable workflow input + `GSF_VENDOR_INCLUDE` env var added.
 
-## Active in v0.1.0
+## Active sources
 
 | `source` slug | Catalog | Endpoint + 1p docs | Auth | Licence | Attribution required |
 |---|---|---|---|---|---|
 | `nvd` | NVD CVE API v2 | `https://services.nvd.nist.gov/rest/json/cves/2.0` · [API docs](https://nvd.nist.gov/developers/vulnerabilities) | Optional [`NVD_API_KEY`](https://nvd.nist.gov/developers/request-an-api-key) raises rate limit 5/30s → 50/30s | US Government work (public domain) | **Yes** — verbatim string below |
 | `cisa-kev` | CISA Known Exploited Vulnerabilities catalog | `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` · [catalog homepage](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | None | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (per [cisagov/kev-data](https://github.com/cisagov/kev-data)) | Not legally required; credit is best practice |
+| `ghsa` | GitHub Security Advisories (reviewed) | REST `GET https://api.github.com/advisories?type=reviewed` · [API reference](https://docs.github.com/en/rest/security-advisories/global-advisories) | Optional `GITHUB_TOKEN` raises 60/hr → 1000/hr | [CC-BY 4.0](https://github.com/github/advisory-database) | **Yes** — per-record advisory `html_url` carried in each row's `refs` |
 
 ### Required NVD attribution (verbatim)
 
@@ -90,7 +91,6 @@ published artifact.
 | `source` slug | Catalog | Endpoint + 1p docs | Licence | Attribution / blockers | Why deferred |
 |---|---|---|---|---|---|
 | `epss` | FIRST.org EPSS | `https://api.first.org/data/v1/epss` · [API docs](https://www.first.org/epss/api) | Unclear (free public grant; "All Rights Reserved" copyright on the site) | Soft request: cite [https://www.first.org/epss](https://www.first.org/epss) | Orthogonal probability score; useful once we have a consumer who ranks |
-| `ghsa` | GitHub Security Advisories | REST `GET https://api.github.com/advisories?type=reviewed` · [API reference](https://docs.github.com/en/rest/security-advisories/global-advisories) | [CC-BY 4.0](https://github.com/github/advisory-database) | **Per-record `source_url`** (`html_url`) to `https://github.com/advisories/GHSA-xxxx` required | Ecosystem-tagged (npm / PyPI / Go / RubyGems) → better stack mapping than NVD for downstream filtering |
 | `osv` | Google OSV.dev | `https://api.osv.dev/v1/query` · [API docs](https://google.github.io/osv.dev/api/) | Apache-2.0 for the platform; per-record license follows upstream (e.g., GHSA → CC-BY 4.0) | Inherits upstream attribution; cite OSV at `https://osv.dev/` | Distributed vuln DB; OSV-Scanner consumes the same format |
 | `redhat` | Red Hat Security Data API | `https://access.redhat.com/hydra/rest/securitydata/cve.json` · [API docs](https://access.redhat.com/articles/red_hat_security_data_api) | [CC-BY 4.0](https://access.redhat.com/security/data) | **Per-record** attribution to `https://access.redhat.com/security/cve/<id>` required | RHEL / UBI advisories — needed when Docker base images are RHEL/UBI |
 | `ubuntu` | Ubuntu Security Notices | `https://ubuntu.com/security/notices.json` · [catalog homepage](https://ubuntu.com/security/notices) | **Unclear** — no open-data licence found; notice text is © Canonical Ltd. | **Inquiry to Canonical legal required before adding** | Same for Ubuntu base images |
