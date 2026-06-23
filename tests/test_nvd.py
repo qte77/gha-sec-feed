@@ -7,7 +7,16 @@ from typing import Any
 
 import pytest
 
-from gha_sec_feed.fetchers.nvd import _extract_refs, _severity, fetch
+from hypothesis import given
+from hypothesis import strategies as st
+
+from gha_sec_feed.fetchers.nvd import (
+    _extract_refs,
+    _infer_vendors_from_refs,
+    _severity,
+    _to_row,
+    fetch,
+)
 from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedRow
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nvd_sample.json"
@@ -224,3 +233,77 @@ def test_severity_threshold_table():
     assert _severity(0.1) == "low"
     assert _severity(0.0) == "unknown"
     assert _severity(None) == "unknown"
+
+
+# ---------- vendor inference from GitHub refs (#50) --------------------------
+
+
+def _bare_cve(cve_id: str, **extra: Any) -> dict[str, Any]:
+    """Minimal NVD `cve` object for _to_row (no CPE, no metrics)."""
+    return {"id": cve_id, "published": "2026-06-01T00:00:00.000", **extra}
+
+
+def test_to_row_infers_vendors_from_github_refs_when_cpe_empty():
+    # No `configurations` (CPE) → fall back to the org of a GHSA-mirror ref.
+    cve = _bare_cve(
+        "CVE-2026-3001",
+        references=[{"url": "https://github.com/fastapi/fastapi/security/advisories/GHSA-x"}],
+    )
+    assert _to_row(cve).vendors == ["fastapi"]
+
+
+def test_to_row_prefers_cpe_over_ref_inference():
+    # CPE present → CPE vendor wins; the github ref is ignored.
+    cve = _bare_cve(
+        "CVE-2026-3002",
+        configurations=[
+            {"nodes": [{"cpeMatch": [{"criteria": "cpe:2.3:a:python:python:*:*:*:*:*:*:*:*"}]}]}
+        ],
+        references=[{"url": "https://github.com/foo/bar"}],
+    )
+    assert _to_row(cve).vendors == ["python"]
+
+
+def test_to_row_dedupes_refs_inferred_vendors():
+    cve = _bare_cve(
+        "CVE-2026-3003",
+        references=[
+            {"url": "https://github.com/foo/bar"},
+            {"url": "https://github.com/foo/baz/issues/1"},
+        ],
+    )
+    assert _to_row(cve).vendors == ["foo"]
+
+
+def test_to_row_ignores_non_github_refs_for_inference():
+    cve = _bare_cve(
+        "CVE-2026-3004",
+        references=[{"url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3004"}],
+    )
+    assert _to_row(cve).vendors == []
+
+
+@given(
+    host=st.sampled_from(
+        [
+            "github.com",
+            "github.com.evil.com",
+            "evil.com",
+            "raw.githubusercontent.com",
+            "gitlab.com",
+            "notgithub.com",
+        ]
+    ),
+    org=st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.",
+        min_size=1,
+        max_size=20,
+    ),
+)
+def test_infer_vendors_is_host_anchored_and_lowercased(host: str, org: str):
+    # Property: only a literal `github.com` host yields a vendor (the
+    # lowercased org); look-alike hosts (github.com.evil.com, raw.github...)
+    # must yield nothing — guards against an SSRF-style host-confusion bug.
+    cve = {"references": [{"url": f"https://{host}/{org}/repo"}]}
+    result = _infer_vendors_from_refs(cve)
+    assert result == ([org.lower()] if host == "github.com" else [])
