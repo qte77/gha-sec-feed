@@ -7,6 +7,7 @@ catalog update. No authentication, no documented rate limit.
 from __future__ import annotations
 
 from json import loads
+from re import split
 from typing import Any
 
 from gha_sec_feed import http
@@ -17,15 +18,16 @@ _CATALOG_URL = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
 
 
 def _refs(notes: str) -> list[str]:
-    """Use a notes URL when present; otherwise the catalog homepage.
+    """Split ``notes`` into individual reference URLs.
 
-    C1 requires ``len(refs) >= 1``; KEV entries with empty ``notes`` get
-    the catalog page as the canonical reference.
+    KEV ``notes`` can carry several URLs joined by ``;`` with arbitrary
+    surrounding whitespace (e.g. ``"https://a ; https://b"``). Split on the
+    separator, keep only the ``http(s)`` parts, and fall back to the catalog
+    homepage when none qualify — C1 requires ``len(refs) >= 1``.
     """
-    notes = notes.strip()
-    if notes.startswith(("http://", "https://")):
-        return [notes]
-    return [_CATALOG_URL]
+    candidates = [part.strip() for part in split(r"\s*;\s*", notes) if part.strip()]
+    urls = [part for part in candidates if part.startswith(("http://", "https://"))]
+    return urls or [_CATALOG_URL]
 
 
 def _to_row(entry: dict[str, Any]) -> FeedRow:
