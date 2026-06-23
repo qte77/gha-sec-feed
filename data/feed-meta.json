@@ -1,7 +1,7 @@
 {
-  "item_count": 59,
-  "last_run": "2026-06-23T21:30:48Z",
-  "schema_version": "1.2.0",
+  "item_count": 14,
+  "last_run": "2026-06-23T22:55:52Z",
+  "schema_version": "1.4.0",
   "sources": [
     {
       "attribution": "This product uses the NVD API but is not endorsed or certified by the NVD.",
@@ -16,6 +16,20 @@
       "license": "CC0-1.0",
       "name": "CISA Known Exploited Vulnerabilities Catalog",
       "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+    },
+    {
+      "attribution": "GitHub Advisory Database — CC BY 4.0; per-record advisory URL carried in each row's refs.",
+      "id": "ghsa",
+      "license": "CC-BY-4.0",
+      "name": "GitHub Security Advisories (GHSA)",
+      "url": "https://github.com/advisories"
+    },
+    {
+      "attribution": "Microsoft Security Response Center — © Microsoft Corporation; per-record update-guide URL carried in each row's refs.",
+      "id": "msrc",
+      "license": "proprietary",
+      "name": "Microsoft Security Response Center (MSRC)",
+      "url": "https://msrc.microsoft.com/update-guide"
     }
   ],
   "tool_version": "0.1.0"
