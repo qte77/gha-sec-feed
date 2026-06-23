@@ -10,10 +10,10 @@ on:
         required: false
         type: string
       keywords:
-        description: 'CSV keyword filter (id + description, case-insensitive). Default is the qte77-stack showcase set.'
+        description: 'CSV keyword filter (id + description, case-insensitive). Empty = no keyword filter.'
         required: false
         type: string
-        default: 'github actions,docker image,docker container,kubernetes,pypi,pip install,nodejs,node.js,typescript,cargo crate,uv-python,httpx,pydantic,fastapi,codeql'
+        default: ''
       severity_min:
         description: 'Minimum severity (critical/high/medium/low/unknown). unknown = no severity filter.'
         required: false
@@ -30,10 +30,10 @@ on:
         type: string
         default: ''
       vendor_include:
-        description: 'CSV CPE-derived vendor names (intersected with each row''s vendors). Empty = no vendor filter. KEV rows have empty vendors and are rejected when set.'
+        description: 'CSV vendor names (CPE-derived or inferred from GitHub-org refs), intersected with each row''s vendors. Default is the qte77-stack showcase set. KEV rows have empty vendors and are rejected when set.'
         required: false
         type: string
-        default: ''
+        default: 'python,nodejs,docker,kubernetes,fastapi,pydantic,django,helm,rust-lang,github'
       out_dir:
         description: 'Output directory for feed.jsonl + feed-meta.json.'
         required: false
@@ -93,17 +93,20 @@ jobs:
       NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Filter knobs flow into pydantic-settings env vars on the producer.
-      # `schedule` has no `inputs.*`, so fall back to the showcase set
-      # there; otherwise pass the resolved input through verbatim. Empty
-      # strings are treated as "no filter" by the producer's CSV parser.
-      GSF_KEYWORDS: >-
-        ${{ github.event_name == 'schedule'
-            && 'github actions,docker image,docker container,kubernetes,pypi,pip install,nodejs,node.js,typescript,cargo crate,uv-python,httpx,pydantic,fastapi,codeql'
-            || inputs.keywords }}
+      # Empty strings are treated as "no filter" by the producer's CSV parser.
+      GSF_KEYWORDS: ${{ inputs.keywords }}
       GSF_SEVERITY_MIN: ${{ inputs.severity_min || 'unknown' }}
       GSF_KEV_ONLY: ${{ inputs.kev_only && 'true' || 'false' }}
       GSF_CWE_INCLUDE: ${{ inputs.cwe_include }}
-      GSF_VENDOR_INCLUDE: ${{ inputs.vendor_include }}
+      # This repo's own weekly cron showcases the filter with a qte77-stack
+      # vendor allowlist (CPE-derived or inferred from GitHub-org refs — more
+      # precise than bare keywords). Gated on `github.repository` so downstream
+      # reusable-workflow callers running on their own schedule get their own
+      # `vendor_include`, not ours. `schedule` carries no `inputs.*`.
+      GSF_VENDOR_INCLUDE: >-
+        ${{ (github.event_name == 'schedule' && github.repository == 'qte77/gha-sec-feed')
+            && 'python,nodejs,docker,kubernetes,fastapi,pydantic,django,helm,rust-lang,github'
+            || inputs.vendor_include }}
       GSF_OUT_DIR: ${{ inputs.out_dir || 'data' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
