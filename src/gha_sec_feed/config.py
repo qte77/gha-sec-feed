@@ -29,21 +29,23 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from gha_sec_feed import __version__
 from gha_sec_feed.models import Severity
 
-# Curated list of top desktop browser User-Agent strings (Chrome /
-# Firefox / Safari / Edge on Windows / macOS / Linux), per
-# https://www.useragents.me top entries. NVD is behind Cloudflare,
-# which fingerprints non-browser User-Agents and silently 404s
-# requests after a small number of failures from the same UA value.
-# Defaulting to a random pick from a real-browser pool sidesteps
-# that heuristic without needing an NVD API key.
+# Curated pool of common, current desktop browser User-Agent strings
+# (Chrome / Firefox / Safari / Edge on Windows / macOS / Linux), drawn from
+# the most-common entries at https://www.useragents.me and the scraping-UA
+# guidance at https://hasdata.com/blog/user-agents-for-web-scraping. Several
+# upstreams sit behind CDNs/WAFs (NVD's Cloudflare, MSRC's Azure WAF) that
+# fingerprint non-browser User-Agents and silently 404/999 requests.
+# Defaulting to a random pick from a real-browser pool sidesteps the
+# UA heuristic (it does not defeat datacenter-IP blocks). Refresh these to
+# current major versions periodically; stale UAs themselves look suspicious.
 _BROWSER_UAS: tuple[str, ...] = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2; rv:121.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:134.0) Gecko/20100101 Firefox/134.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15",
 )
 
 
