@@ -14,6 +14,11 @@ from gha_sec_feed.http import _validate_url, get
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 
+# The NVD-without-key nudge (#4) is intentional; silence it for the tests that
+# exercise the NVD path for unrelated reasons. The dedicated warning tests use
+# pytest.warns / catch_warnings, which override this filter inside their block.
+pytestmark = pytest.mark.filterwarnings("ignore:NVD_API_KEY not set:RuntimeWarning")
+
 
 @pytest.fixture(autouse=True)
 def _clean_settings(monkeypatch: pytest.MonkeyPatch):
@@ -216,6 +221,46 @@ def test_get_does_not_inject_empty_apikey_when_env_blank(monkeypatch: pytest.Mon
 
     get(NVD_URL, _transport=_mock(handler))
     assert "apikey" not in (k.lower() for k in captured)
+
+
+# ---------- NVD-key warning (#4) -------------------------------------------
+
+
+def test_get_warns_when_nvd_host_without_api_key():
+    # No key set (the autouse fixture clears NVD_API_KEY) → one-time warning
+    # so silent 5/30s rate-limiting doesn't go unnoticed in dev.
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"")
+
+    with pytest.warns(RuntimeWarning, match="NVD_API_KEY"):
+        get(NVD_URL, _transport=_mock(handler))
+
+
+def test_get_does_not_warn_when_nvd_api_key_set(monkeypatch: pytest.MonkeyPatch):
+    import warnings
+
+    monkeypatch.setenv("NVD_API_KEY", "secret-123")
+    reset_settings_cache()
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"")
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        get(NVD_URL, _transport=_mock(handler))
+    assert not [w for w in caught if issubclass(w.category, RuntimeWarning)]
+
+
+def test_get_does_not_warn_for_non_nvd_host():
+    import warnings
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"")
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        get(KEV_URL, _transport=_mock(handler))
+    assert not [w for w in caught if issubclass(w.category, RuntimeWarning)]
 
 
 # ---------- retry behavior -------------------------------------------------
