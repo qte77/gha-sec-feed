@@ -1,0 +1,71 @@
+---
+name: bump-version
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Semver part to bump'
+        required: true
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions: {}
+
+concurrency:
+  group: bump-version
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: bump version + open release PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+      - run: make install
+      - name: Bump version and open a signed release PR
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          # Edit version files without committing; tagging is deferred to
+          # tag-release.yaml so the tag lands on main's squash-merge commit.
+          uv run bump-my-version bump --no-commit "${{ inputs.bump_type }}"
+          new=$(uv run bump-my-version show current_version)
+          uv lock
+
+          # Commit the bumped files via the Git Data API (web-flow signed) so
+          # the release PR is mergeable under required_signatures — same pattern
+          # as the cron in update_feed.yaml. jq builds each request body.
+          base_sha=$(gh api "repos/$repo/git/refs/heads/main" --jq '.object.sha')
+          base_tree=$(gh api "repos/$repo/git/commits/$base_sha" --jq '.tree.sha')
+          tree=$(jq -n --arg b "$base_tree" '{base_tree:$b, tree:[]}')
+          for f in pyproject.toml src/gha_sec_feed/__init__.py uv.lock; do
+            blob=$(jq -n --arg c "$(base64 -w0 "$f")" '{encoding:"base64",content:$c}' \
+              | gh api -X POST "repos/$repo/git/blobs" --input - --jq '.sha')
+            tree=$(printf '%s' "$tree" | jq --arg p "$f" --arg s "$blob" \
+              '.tree += [{path:$p, mode:"100644", type:"blob", sha:$s}]')
+          done
+          tree_sha=$(printf '%s' "$tree" \
+            | gh api -X POST "repos/$repo/git/trees" --input - --jq '.sha')
+          commit_sha=$(jq -n \
+            --arg m "chore(release): bump to v$new" \
+            --arg t "$tree_sha" --arg p "$base_sha" \
+            '{message:$m, tree:$t, parents:[$p]}' \
+            | gh api -X POST "repos/$repo/git/commits" --input - --jq '.sha')
+
+          branch="release/v$new"
+          gh api -X POST "repos/$repo/git/refs" \
+            -f ref="refs/heads/$branch" -f sha="$commit_sha"
+          gh pr create --base main --head "$branch" \
+            --title "chore(release): bump to v$new" \
+            --body "Automated version bump to v$new. Before merging, promote CHANGELOG \`[Unreleased]\` to \`[$new]\`. Merging to main triggers tag-release.yaml (tag + GitHub Release)."
