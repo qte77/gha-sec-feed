@@ -60,13 +60,20 @@ def mock_http(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return captured
 
 
-def test_fetch_lists_updates_then_pulls_only_in_window_documents(mock_http: dict[str, Any]):
+def test_fetch_lists_updates_then_pulls_only_the_latest_document(mock_http: dict[str, Any]):
     fetch(SINCE)
     urls = mock_http["urls"]
     assert urls[0].endswith("/cvrf/v3.0/updates")
-    assert any(u.endswith("/cvrf/2026-Jun") for u in urls)
-    # 2026-May released before `since` → its document is never fetched.
+    assert any(u.endswith("/cvrf/2026-Jun") for u in urls)  # latest month
+    # Only the latest monthly document is pulled; older months are not.
     assert not any(u.endswith("/cvrf/2026-May") for u in urls)
+
+
+def test_fetch_ignores_since_window_for_monthly_selection(mock_http: dict[str, Any]):
+    # MSRC is monthly: even a `since` AFTER the latest release still pulls the
+    # latest document (the old 7-day-window filter wrongly excluded it, #66).
+    rows = fetch("2026-07-01T00:00:00Z")
+    assert [r.id for r in rows] == ["CVE-2026-30001", "CVE-2026-30002"]
 
 
 def test_fetch_skips_non_cve_advisories(mock_http: dict[str, Any]):
