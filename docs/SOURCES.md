@@ -76,6 +76,7 @@ surface. Reusable workflow input + `GSF_VENDOR_INCLUDE` env var added.
 | `nvd` | NVD CVE API v2 | `https://services.nvd.nist.gov/rest/json/cves/2.0` · [API docs](https://nvd.nist.gov/developers/vulnerabilities) | Optional [`NVD_API_KEY`](https://nvd.nist.gov/developers/request-an-api-key) raises rate limit 5/30s → 50/30s | US Government work (public domain) | **Yes** — verbatim string below |
 | `cisa-kev` | CISA Known Exploited Vulnerabilities catalog | `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` · [catalog homepage](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | None | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (per [cisagov/kev-data](https://github.com/cisagov/kev-data)) | Not legally required; credit is best practice |
 | `ghsa` | GitHub Security Advisories (reviewed) | REST `GET https://api.github.com/advisories?type=reviewed` · [API reference](https://docs.github.com/en/rest/security-advisories/global-advisories) | Optional `GITHUB_TOKEN` raises 60/hr → 1000/hr | [CC-BY 4.0](https://github.com/github/advisory-database) | **Yes** — per-record advisory `html_url` carried in each row's `refs` |
+| `msrc` | Microsoft Security Response Center CVRF | REST `GET https://api.msrc.microsoft.com/cvrf/v3.0/{updates, cvrf/<id>}` · [CVRF v3.0 API](https://api.msrc.microsoft.com/cvrf/v3.0/swagger) | None | Proprietary — © Microsoft (review MSRC terms before relying on it) | **Yes** — per-record update-guide URL carried in each row's `refs` |
 
 ### Required NVD attribution (verbatim)
 
@@ -85,6 +86,17 @@ This string MUST appear in `data/feed-meta.json` under each NVD source
 entry. Phase 2d (CLI assembly) wires it in automatically via a static
 sources manifest in the writer/CLI layer so it travels with every
 published artifact.
+
+### MSRC reachability caveat (Azure WAF)
+
+The MSRC CVRF API returns **HTTP 999** (Azure WAF) to datacenter IPs and could
+not be live-verified during development; GitHub-hosted (Azure) runners may be
+blocked too. The `msrc` fetcher is therefore built against the **documented**
+CVRF v3.0 shape and runs behind the producer's **graceful degradation**: if any
+single source (MSRC included) fails, it is logged and skipped — contributing no
+rows rather than failing the whole refresh (the run only errors if *every*
+source fails). Reachability from the cron is confirmed by observing whether
+`source: msrc` rows appear after a real run.
 
 ## Deferred (restore on first concrete request)
 
