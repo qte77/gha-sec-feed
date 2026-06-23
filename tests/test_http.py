@@ -13,6 +13,7 @@ from gha_sec_feed.http import _validate_url, get
 
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+GH_API_URL = "https://api.github.com/advisories"
 
 # The NVD-without-key nudge (#4) is intentional; silence it for the tests that
 # exercise the NVD path for unrelated reasons. The dedicated warning tests use
@@ -25,6 +26,7 @@ def _clean_settings(monkeypatch: pytest.MonkeyPatch):
     """Clear env vars + cached AppSettings before every test."""
     for var in (
         "NVD_API_KEY",
+        "GITHUB_TOKEN",
         "GSF_OUT_DIR",
         "GSF_SINCE_DAYS",
         "GSF_HTTP_TIMEOUT",
@@ -261,6 +263,46 @@ def test_get_does_not_warn_for_non_nvd_host():
         warnings.simplefilter("always")
         get(KEV_URL, _transport=_mock(handler))
     assert not [w for w in caught if issubclass(w.category, RuntimeWarning)]
+
+
+# ---------- GitHub API auth (GHSA, #PR-E) ----------------------------------
+
+
+def test_get_injects_bearer_auth_for_github_when_token_set(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghs_abc123")
+    reset_settings_cache()
+    captured: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        captured.update(req.headers)
+        return httpx.Response(200, content=b"[]")
+
+    get(GH_API_URL, _transport=_mock(handler))
+    assert captured["authorization"] == "Bearer ghs_abc123"
+
+
+def test_get_no_auth_for_github_when_token_unset():
+    captured: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        captured.update(req.headers)
+        return httpx.Response(200, content=b"[]")
+
+    get(GH_API_URL, _transport=_mock(handler))
+    assert "authorization" not in {k.lower() for k in captured}
+
+
+def test_get_no_auth_for_non_github_host_when_token_set(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghs_abc123")
+    reset_settings_cache()
+    captured: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        captured.update(req.headers)
+        return httpx.Response(200, content=b"")
+
+    get(KEV_URL, _transport=_mock(handler))
+    assert "authorization" not in {k.lower() for k in captured}
 
 
 # ---------- retry behavior -------------------------------------------------

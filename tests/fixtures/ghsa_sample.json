@@ -1,0 +1,50 @@
+[
+  {
+    "ghsa_id": "GHSA-1111-1111-1111",
+    "cve_id": "CVE-2026-7001",
+    "html_url": "https://github.com/advisories/GHSA-1111-1111-1111",
+    "summary": "SQL injection in example",
+    "severity": "critical",
+    "cvss": { "score": 9.8, "vector_string": "CVSS:3.1/AV:N/AC:L" },
+    "cvss_severities": { "cvss_v3": { "score": 9.8 }, "cvss_v4": { "score": null } },
+    "epss": { "percentage": 0.42, "percentile": 0.97 },
+    "cwes": [
+      { "cwe_id": "CWE-89", "name": "SQLi" },
+      { "cwe_id": "CWE-89", "name": "dup" }
+    ],
+    "published_at": "2026-06-20T10:00:00Z",
+    "withdrawn_at": null,
+    "references": [
+      "https://github.com/foo/bar/security/advisories/GHSA-1111-1111-1111",
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-7001"
+    ]
+  },
+  {
+    "ghsa_id": "GHSA-2222-2222-2222",
+    "cve_id": null,
+    "html_url": "https://github.com/advisories/GHSA-2222-2222-2222",
+    "summary": "Advisory without a CVE",
+    "severity": "medium",
+    "cvss": { "score": null, "vector_string": null },
+    "cvss_severities": { "cvss_v3": { "score": 0 }, "cvss_v4": { "score": 5.3 } },
+    "epss": {},
+    "cwes": [],
+    "published_at": "2026-06-19T08:30:00.123Z",
+    "withdrawn_at": null,
+    "references": []
+  },
+  {
+    "ghsa_id": "GHSA-3333-3333-3333",
+    "cve_id": "CVE-2026-7003",
+    "html_url": "https://github.com/advisories/GHSA-3333-3333-3333",
+    "summary": "Withdrawn advisory",
+    "severity": "high",
+    "cvss": { "score": 7.5 },
+    "cvss_severities": {},
+    "epss": null,
+    "cwes": [{ "cwe_id": "CWE-79" }],
+    "published_at": "2026-06-18T00:00:00Z",
+    "withdrawn_at": "2026-06-21T00:00:00Z",
+    "references": []
+  }
+]

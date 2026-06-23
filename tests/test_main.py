@@ -65,6 +65,29 @@ def test_merge_overlap_keeps_nvd_fields_but_flips_kev_true():
     assert merged.kev is True
 
 
+def test_merge_ghsa_fills_ids_absent_from_nvd_and_nvd_wins_on_overlap():
+    # NVD precedence on shared id; GHSA-only rows pass through.
+    nvd_row = _row("CVE-1", cvss=9.8, severity="critical")
+    ghsa_rows = [
+        _row("CVE-1", source="ghsa", cvss=5.0, severity="medium"),  # overlap → NVD wins
+        _row("GHSA-x", source="ghsa", cvss=4.0, severity="medium"),  # GHSA-only → kept
+    ]
+    rows = {r.id: r for r in _merge([nvd_row], ghsa_rows, [])}
+    assert rows["CVE-1"].source == "nvd"
+    assert rows["CVE-1"].cvss == 9.8
+    assert rows["GHSA-x"].source == "ghsa"
+
+
+def test_merge_ors_kev_flag_onto_ghsa_only_row():
+    # KEV's exploited-in-the-wild flag must reach a GHSA-sourced row too.
+    ghsa_row = _row("CVE-9", source="ghsa", cvss=8.1, severity="high")
+    kev_row = _row("CVE-9", source="cisa-kev", severity="unknown", cvss=None, kev=True)
+    rows = _merge([], [ghsa_row], [kev_row])
+    assert len(rows) == 1
+    assert rows[0].source == "ghsa"
+    assert rows[0].kev is True
+
+
 def test_merge_output_sorted_by_published_descending():
     rows = _merge(
         [
@@ -123,6 +146,7 @@ def test_main_writes_feed_and_meta_to_out_dir(tmp_path: Path, monkeypatch: pytes
         _row("CVE-200", source="cisa-kev", severity="unknown", cvss=None, kev=True),
     ]
     monkeypatch.setattr(cli.nvd, "fetch", lambda _since: nvd_rows)
+    monkeypatch.setattr(cli.ghsa, "fetch", lambda _since: [])
     monkeypatch.setattr(cli.kev, "fetch", lambda: kev_rows)
 
     main(["--out", str(tmp_path), "--since", "2026-05-01T00:00:00Z"])
@@ -134,7 +158,7 @@ def test_main_writes_feed_and_meta_to_out_dir(tmp_path: Path, monkeypatch: pytes
 
     meta = loads((tmp_path / "feed-meta.json").read_text(encoding="utf-8"))
     assert meta["item_count"] == 2
-    assert {s["id"] for s in meta["sources"]} == {"nvd", "cisa-kev"}
+    assert {s["id"] for s in meta["sources"]} == {"nvd", "cisa-kev", "ghsa"}
 
 
 def test_main_creates_out_dir_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -142,6 +166,7 @@ def test_main_creates_out_dir_when_missing(tmp_path: Path, monkeypatch: pytest.M
     # directory rather than raising FileNotFoundError on a fresh path.
     monkeypatch.setattr(cli.nvd, "fetch", lambda _since: [_row("CVE-1")])
     monkeypatch.setattr(cli.kev, "fetch", lambda: [])
+    monkeypatch.setattr(cli.ghsa, "fetch", lambda _since: [])
     out = tmp_path / "nested" / "out"
 
     main(["--out", str(out), "--since", "2026-05-01T00:00:00Z"])
@@ -154,6 +179,7 @@ def test_main_default_out_dir_is_data(monkeypatch: pytest.MonkeyPatch, tmp_path:
     captured: dict[str, Any] = {}
     monkeypatch.setattr(cli.nvd, "fetch", lambda _s: [])
     monkeypatch.setattr(cli.kev, "fetch", lambda: [])
+    monkeypatch.setattr(cli.ghsa, "fetch", lambda _since: [])
     monkeypatch.setattr(
         cli.writer,
         "write_feed",
@@ -180,6 +206,7 @@ def test_main_applies_settings_driven_filter_before_writing(
     ]
     monkeypatch.setattr(cli.nvd, "fetch", lambda _since: nvd_rows)
     monkeypatch.setattr(cli.kev, "fetch", lambda: [])
+    monkeypatch.setattr(cli.ghsa, "fetch", lambda _since: [])
     monkeypatch.setenv("GSF_SEVERITY_MIN", "high")
     reset_settings_cache()
     try:
