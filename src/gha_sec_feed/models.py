@@ -30,6 +30,11 @@ default ``[]`` so prior callers stay valid; the
 ``keywords_matched`` semantic is per-producer-run and distinct from
 the eval-side ``matched_keywords`` field on C2 (which reflects
 ``stack_keywords`` matches against ``refs``).
+
+Schema 1.3.0 adds the ``ghsa`` source slug (GitHub Security Advisories). No
+new field is introduced — the advisory's ``html_url`` rides in ``refs`` as the
+required CC-BY 4.0 per-record attribution. The bump signals the new ``source``
+value so consumers that switch on ``source`` know to expect it.
 """
 
 from __future__ import annotations
@@ -38,10 +43,10 @@ from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-FEED_SCHEMA_VERSION: Final[str] = "1.2.0"
+FEED_SCHEMA_VERSION: Final[str] = "1.3.0"
 
 Severity = Literal["critical", "high", "medium", "low", "unknown"]
-SourceSlug = Literal["nvd", "cisa-kev"]
+SourceSlug = Literal["nvd", "cisa-kev", "ghsa"]
 
 
 class SourceEntry(BaseModel):

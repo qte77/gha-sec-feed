@@ -28,6 +28,7 @@ _ALLOWED_HOSTS: Final[frozenset[str]] = frozenset(
     {
         "services.nvd.nist.gov",
         "www.cisa.gov",
+        "api.github.com",
     }
 )
 
@@ -50,6 +51,7 @@ _BACKOFF_BASE: Final[float] = 0.2
 _BACKOFF_FACTOR: Final[float] = 2.0
 
 _NVD_HOST: Final[str] = "services.nvd.nist.gov"
+_GITHUB_API_HOST: Final[str] = "api.github.com"
 
 
 def _sleep(seconds: float) -> None:
@@ -113,6 +115,13 @@ def _build_headers(url: str, headers: dict[str, str] | None) -> dict[str, str]:
                 RuntimeWarning,
                 stacklevel=3,
             )
+    if urlparse(url).hostname == _GITHUB_API_HOST and "authorization" not in keys_lower:
+        # GitHub token is optional (unauthenticated GHSA works at 60/hr); when
+        # set it raises the api.github.com limit to 1000/hr. Empty-string env
+        # is treated as absent, mirroring the NVD apiKey handling.
+        token = s.github_token.get_secret_value() if s.github_token is not None else ""
+        if token:
+            merged["Authorization"] = f"Bearer {token}"
     return merged
 
 

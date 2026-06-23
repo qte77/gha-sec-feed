@@ -89,6 +89,16 @@ class AppSettings(BaseSettings):
         ),
     )
 
+    github_token: SecretStr | None = Field(
+        default=None,
+        alias="GITHUB_TOKEN",
+        description=(
+            "Optional GitHub token for the GHSA fetcher. Raises the "
+            "api.github.com REST limit from 60/hr (unauthenticated) to 1000/hr. "
+            "In Actions, map secrets.GITHUB_TOKEN to a GITHUB_TOKEN env var."
+        ),
+    )
+
     out_dir: Path = Field(
         default=Path("./data"),
         description="Output directory for feed.jsonl and feed-meta.json.",

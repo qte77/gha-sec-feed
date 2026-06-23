@@ -17,7 +17,7 @@ from pathlib import Path
 
 from gha_sec_feed import __version__, writer
 from gha_sec_feed.config import settings
-from gha_sec_feed.fetchers import kev, nvd
+from gha_sec_feed.fetchers import ghsa, kev, nvd
 from gha_sec_feed.filter import apply_filters
 from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedMeta, FeedRow, SourceEntry
 
@@ -38,6 +38,13 @@ _SOURCES_MANIFEST: list[SourceEntry] = [
         license="CC0-1.0",
         attribution="CISA KEV Catalog — public domain, no endorsement implied.",
     ),
+    SourceEntry(
+        id="ghsa",
+        name="GitHub Security Advisories (GHSA)",
+        url="https://github.com/advisories",
+        license="CC-BY-4.0",
+        attribution="GitHub Advisory Database — CC BY 4.0; per-record advisory URL carried in each row's refs.",
+    ),
 ]
 
 
@@ -51,20 +58,28 @@ def _default_since() -> str:
     return _iso_z(datetime.now(timezone.utc) - timedelta(days=7))
 
 
-def _merge(nvd_rows: list[FeedRow], kev_rows: list[FeedRow]) -> list[FeedRow]:
-    """Dedupe by ``id``; sort by ``published`` descending.
+def _merge(*sources: list[FeedRow]) -> list[FeedRow]:
+    """Dedupe by ``id`` across sources; sort by ``published`` descending.
 
-    KEV's contribution is the ``kev=True`` flag; NVD's contribution is the
-    CVSS + severity. On overlap, the NVD row wins for every field except
-    ``kev``, which is set to ``True`` via ``model_copy``.
+    Pass sources in precedence order — earliest wins on field values: NVD
+    (authoritative CVSS + vendors) first, then GHSA (fills CVEs/advisories NVD
+    hasn't covered), then KEV. The ``kev`` flag is OR'd across every source, so
+    any source marking an id ``kev=True`` flips the surviving row — KEV's sole
+    contribution (the exploited-in-the-wild flag) is never lost to a
+    higher-precedence row.
     """
-    by_id: dict[str, FeedRow] = {row.id: row for row in nvd_rows}
-    for k_row in kev_rows:
-        if k_row.id in by_id:
-            by_id[k_row.id] = by_id[k_row.id].model_copy(update={"kev": True})
-        else:
-            by_id[k_row.id] = k_row
-    return sorted(by_id.values(), key=lambda r: r.published, reverse=True)
+    by_id: dict[str, FeedRow] = {}
+    kev_ids: set[str] = set()
+    for source in sources:
+        for row in source:
+            if row.kev:
+                kev_ids.add(row.id)
+            by_id.setdefault(row.id, row)
+    merged = [
+        row.model_copy(update={"kev": True}) if row.id in kev_ids and not row.kev else row
+        for row in by_id.values()
+    ]
+    return sorted(merged, key=lambda r: r.published, reverse=True)
 
 
 def _build_meta(rows: list[FeedRow]) -> FeedMeta:
@@ -96,8 +111,9 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     nvd_rows = nvd.fetch(args.since)
+    ghsa_rows = ghsa.fetch(args.since)
     kev_rows = kev.fetch()
-    merged = _merge(nvd_rows, kev_rows)
+    merged = _merge(nvd_rows, ghsa_rows, kev_rows)
     filtered = apply_filters(merged, settings())
     meta = _build_meta(filtered)
     writer.write_feed(filtered, meta, args.out)
