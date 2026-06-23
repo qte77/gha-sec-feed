@@ -45,17 +45,21 @@ jobs:
 
           # Commit the bumped files via the Git Data API (web-flow signed) so
           # the release PR is mergeable under required_signatures — same pattern
-          # as the cron in update_feed.yaml. jq builds each request body.
+          # as the cron in update_feed.yaml. File contents are inlined into the
+          # tree via jq --rawfile (read from disk, not shell args) so large
+          # files like uv.lock don't blow ARG_MAX; the tree JSON streams to gh
+          # api over stdin and GitHub creates the blobs.
           base_sha=$(gh api "repos/$repo/git/refs/heads/main" --jq '.object.sha')
           base_tree=$(gh api "repos/$repo/git/commits/$base_sha" --jq '.tree.sha')
-          tree=$(jq -n --arg b "$base_tree" '{base_tree:$b, tree:[]}')
-          for f in pyproject.toml src/gha_sec_feed/__init__.py uv.lock; do
-            blob=$(jq -n --arg c "$(base64 -w0 "$f")" '{encoding:"base64",content:$c}' \
-              | gh api -X POST "repos/$repo/git/blobs" --input - --jq '.sha')
-            tree=$(printf '%s' "$tree" | jq --arg p "$f" --arg s "$blob" \
-              '.tree += [{path:$p, mode:"100644", type:"blob", sha:$s}]')
-          done
-          tree_sha=$(printf '%s' "$tree" \
+          tree_sha=$(jq -n \
+            --arg base "$base_tree" \
+            --rawfile pyproject pyproject.toml \
+            --rawfile initpy src/gha_sec_feed/__init__.py \
+            --rawfile lock uv.lock \
+            '{base_tree:$base, tree:[
+               {path:"pyproject.toml", mode:"100644", type:"blob", content:$pyproject},
+               {path:"src/gha_sec_feed/__init__.py", mode:"100644", type:"blob", content:$initpy},
+               {path:"uv.lock", mode:"100644", type:"blob", content:$lock}]}' \
             | gh api -X POST "repos/$repo/git/trees" --input - --jq '.sha')
           commit_sha=$(jq -n \
             --arg m "chore(release): bump to v$new" \
