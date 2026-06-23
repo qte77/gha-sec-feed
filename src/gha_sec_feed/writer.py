@@ -37,7 +37,11 @@ def write_feed(rows: list[FeedRow], meta: FeedMeta, out_dir: Path) -> None:
     Output is deterministic: Pydantic ``model_dump_json()`` follows declared
     field order, and the models declare fields alphabetically — so identical
     inputs produce byte-identical outputs across runs.
+
+    The destination directory (including any missing parents) is created
+    first, so a fresh ``--out`` path does not raise ``FileNotFoundError``.
     """
+    out_dir.mkdir(parents=True, exist_ok=True)
     rows_text = "".join(row.model_dump_json() + "\n" for row in rows)
     meta_text = meta.model_dump_json(indent=2) + "\n"
     _write_text_atomic(out_dir / _JSONL_NAME, rows_text)

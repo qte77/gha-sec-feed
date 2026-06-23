@@ -137,6 +137,19 @@ def test_main_writes_feed_and_meta_to_out_dir(tmp_path: Path, monkeypatch: pytes
     assert {s["id"] for s in meta["sources"]} == {"nvd", "cisa-kev"}
 
 
+def test_main_creates_out_dir_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    # Regression: write_feed must create a missing (possibly nested) output
+    # directory rather than raising FileNotFoundError on a fresh path.
+    monkeypatch.setattr(cli.nvd, "fetch", lambda _since: [_row("CVE-1")])
+    monkeypatch.setattr(cli.kev, "fetch", lambda: [])
+    out = tmp_path / "nested" / "out"
+
+    main(["--out", str(out), "--since", "2026-05-01T00:00:00Z"])
+
+    assert (out / "feed.jsonl").exists()
+    assert (out / "feed-meta.json").exists()
+
+
 def test_main_default_out_dir_is_data(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     captured: dict[str, Any] = {}
     monkeypatch.setattr(cli.nvd, "fetch", lambda _s: [])

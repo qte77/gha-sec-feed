@@ -18,6 +18,7 @@ from __future__ import annotations
 from time import sleep
 from typing import Final
 from urllib.parse import urlparse
+from warnings import warn
 
 import httpx
 
@@ -99,10 +100,19 @@ def _build_headers(url: str, headers: dict[str, str] | None) -> dict[str, str]:
         # Cloudflare layer treats `apiKey:` with an empty value as an
         # invalid auth attempt and silently 404s the request (the root
         # cause of #27).
-        if s.nvd_api_key is not None:
-            key = s.nvd_api_key.get_secret_value()
-            if key:
-                merged["apiKey"] = key
+        key = s.nvd_api_key.get_secret_value() if s.nvd_api_key is not None else ""
+        if key:
+            merged["apiKey"] = key
+        else:
+            # One-time nudge so silent rate-limiting doesn't go unnoticed in
+            # dev: without a key NVD throttles at 5 req/30s (50/30s with one).
+            warn(
+                "NVD_API_KEY not set — NVD rate limit is 5 req/30s; set it to "
+                "raise the limit to 50 req/30s "
+                "(https://nvd.nist.gov/developers/request-an-api-key).",
+                RuntimeWarning,
+                stacklevel=3,
+            )
     return merged
 
 
