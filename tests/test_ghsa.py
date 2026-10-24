@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
-from gha_sec_feed.fetchers.ghsa import _ENDPOINT, fetch
+from gha_sec_feed.fetchers.ghsa import _ENDPOINT, _MAX_PAGES, fetch
 from gha_sec_feed.models import FEED_SCHEMA_VERSION, FeedRow
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ghsa_sample.json"
@@ -25,14 +27,65 @@ def mock_http(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         **_kw: Any,
-    ) -> bytes:
+    ) -> httpx.Response:
         captured["url"] = url
         captured["params"] = dict(params) if params else {}
         captured["headers"] = dict(headers) if headers else {}
-        return fixture_bytes
+        return httpx.Response(200, content=fixture_bytes)
 
-    monkeypatch.setattr("gha_sec_feed.fetchers.ghsa.http.get", fake_get)
+    monkeypatch.setattr("gha_sec_feed.fetchers.ghsa.http.get_response", fake_get)
     return captured
+
+
+def _advisory(n: int) -> dict[str, Any]:
+    """Minimal valid advisory with a unique GHSA id."""
+    return {
+        "ghsa_id": f"GHSA-{n:04d}-0000-0000",
+        "cve_id": None,
+        "html_url": f"https://github.com/advisories/GHSA-{n:04d}-0000-0000",
+        "published_at": "2026-06-16T00:00:00Z",
+        "severity": "low",
+        "summary": "",
+        "references": [],
+        "cwes": [],
+        "withdrawn_at": None,
+    }
+
+
+def _paged_http(
+    monkeypatch: pytest.MonkeyPatch, pages: list[list[dict[str, Any]]], *, endless: bool = False
+) -> list[str]:
+    """Serve ``pages`` linked by ``Link: rel="next"``; record requested URLs."""
+    calls: list[str] = []
+
+    def fake_get(url: str, **_kw: Any) -> httpx.Response:
+        calls.append(url)
+        idx = len(calls) - 1
+        page = pages[min(idx, len(pages) - 1)]
+        has_next = endless or idx < len(pages) - 1
+        headers = {"Link": f'<{_ENDPOINT}?after=c{idx + 1}>; rel="next"'} if has_next else {}
+        return httpx.Response(200, json=page, headers=headers)
+
+    monkeypatch.setattr("gha_sec_feed.fetchers.ghsa.http.get_response", fake_get)
+    return calls
+
+
+def test_fetch_follows_link_next_past_100_advisories(monkeypatch: pytest.MonkeyPatch):
+    pages = [[_advisory(i) for i in range(100)], [_advisory(i) for i in range(100, 205)]]
+    calls = _paged_http(monkeypatch, pages)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # no page-cap warning when all pages are read
+        rows = fetch(SINCE)
+    assert len(rows) == 205
+    assert len({r.id for r in rows}) == 205
+    assert calls == [_ENDPOINT, f"{_ENDPOINT}?after=c1"]
+
+
+def test_fetch_stops_at_max_pages_and_warns(monkeypatch: pytest.MonkeyPatch):
+    calls = _paged_http(monkeypatch, [[_advisory(0)]], endless=True)
+    with pytest.warns(RuntimeWarning, match="page guard"):
+        fetch(SINCE)
+    assert len(calls) == _MAX_PAGES
 
 
 def test_fetch_requests_reviewed_advisories_published_since(mock_http: dict[str, Any]):
