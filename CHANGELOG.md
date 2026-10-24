@@ -37,6 +37,8 @@ Types of changes: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`,
 
 ### Fixed
 
+- GHSA fetch now follows `Link: rel="next"` cursor pagination (bounded by a
+  20-page guard) instead of stopping at the first 100 advisories (#68).
 - KEV `notes` with multiple semicolon-separated URLs now split into distinct
   `refs[]` entries.
 - The producer creates a missing output directory instead of raising

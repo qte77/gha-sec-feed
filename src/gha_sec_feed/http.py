@@ -1,9 +1,9 @@
 """HTTP client with egress allowlist, identity headers, and retry policy.
 
-All outbound HTTP from the producer flows through :func:`get`. The host
-allowlist (:data:`_ALLOWED_HOSTS`) is the choke point: anything not on
-the list raises :class:`ValueError` at the validator, before any socket
-is opened. The pattern is borrowed from
+All outbound HTTP from the producer flows through :func:`get` /
+:func:`get_response`. The host allowlist (:data:`_ALLOWED_HOSTS`) is the
+choke point: anything not on the list raises :class:`ValueError` at the
+validator, before any socket is opened. The pattern is borrowed from
 ``qte77/gha-rxiv-feed-action/src/fetchers/common.py``.
 
 Tunable knobs (User-Agent, timeout, retry budget, NVD API key) come from
@@ -146,7 +146,30 @@ def get(
     max_retries: int | None = None,
     _transport: httpx.BaseTransport | None = None,
 ) -> bytes:
+    """Fetch ``url`` and return the body; see :func:`get_response` for args."""
+    return get_response(
+        url,
+        headers=headers,
+        params=params,
+        timeout=timeout,
+        max_retries=max_retries,
+        _transport=_transport,
+    ).content
+
+
+def get_response(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
+    timeout: float | None = None,
+    max_retries: int | None = None,
+    _transport: httpx.BaseTransport | None = None,
+) -> httpx.Response:
     """Fetch ``url`` through the allowlisted HTTP client.
+
+    Use this over :func:`get` when response headers matter (e.g. the
+    ``Link`` header for cursor pagination, exposed as ``resp.links``).
 
     Args:
         url: HTTPS URL whose host is in :data:`_ALLOWED_HOSTS`.
@@ -159,7 +182,7 @@ def get(
         _transport: Test seam — production callers leave unset.
 
     Returns:
-        Response body on the first ``2xx``.
+        The first ``2xx`` response.
 
     Raises:
         ValueError: URL violates egress policy.
@@ -196,7 +219,7 @@ def get(
     for attempt in range(effective_retries):
         resp = _request()
         if resp.status_code < 400:
-            return resp.content
+            return resp
         last_status = resp.status_code
         if resp.status_code not in _RETRY_STATUS:
             raise RuntimeError(f"HTTP {resp.status_code} for {url}")

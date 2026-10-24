@@ -9,7 +9,7 @@ import pytest
 
 from gha_sec_feed import http
 from gha_sec_feed.config import reset_settings_cache
-from gha_sec_feed.http import _validate_url, get
+from gha_sec_feed.http import _validate_url, get, get_response
 
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
@@ -82,6 +82,18 @@ def test_get_returns_response_body():
         return httpx.Response(200, content=b"hello")
 
     assert get(NVD_URL, _transport=_mock(handler)) == b"hello"
+
+
+def test_get_response_exposes_link_header_for_pagination():
+    # GHSA paginates via `Link: rel="next"` cursors (#68), so callers need headers.
+    next_url = f"{GH_API_URL}?after=abc"
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"[]", headers={"Link": f'<{next_url}>; rel="next"'})
+
+    resp = get_response(GH_API_URL, _transport=_mock(handler))
+    assert resp.content == b"[]"
+    assert resp.links["next"]["url"] == next_url
 
 
 def test_get_default_user_agent_is_a_real_browser_string():
