@@ -110,3 +110,15 @@ def test_fetch_normalizes_published_to_iso_z_no_microseconds(mock_http: dict[str
     for row in rows.values():
         assert row.published.endswith("Z")
         assert "." not in row.published
+
+
+def test_fetch_infers_vendor_from_source_code_location_org(mock_http: dict[str, Any]):
+    rows = {r.id: r for r in fetch(SINCE)}
+    # github.com/FastAPI/fastapi → lowercased org, so `vendor_include=fastapi` admits it.
+    assert rows["CVE-2026-7001"].vendors == ["fastapi"]
+
+
+def test_fetch_falls_back_to_package_names_for_vendors(mock_http: dict[str, Any]):
+    rows = {r.id: r for r in fetch(SINCE)}
+    # No source_code_location → affected package names, lowercased, deduped, null skipped.
+    assert rows["GHSA-2222-2222-2222"].vendors == ["left-pad"]
