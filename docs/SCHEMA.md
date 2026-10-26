@@ -37,7 +37,7 @@ in `src/gha_sec_feed/models.py` (`FEED_SCHEMA_VERSION`).
 | `refs` | Array of authoritative URLs (≥ 1) |
 | `description` | Free-text summary (English; v1.1.0+) |
 | `cwes` | Array of CWE-prefixed identifiers (v1.1.0+) |
-| `vendors` | CPE-derived vendor names, lowercased (v1.2.0+; empty for KEV rows and fresh CVEs awaiting CPE analysis) |
+| `vendors` | Vendor names, lowercased (v1.2.0+): CPE-derived for NVD; for GHSA the `source_code_location` GitHub org, else affected package names. Empty for KEV/MSRC rows and fresh CVEs awaiting CPE analysis |
 | `keywords_matched` | Subset of the producer's configured `keywords` that matched `id + description` (v1.2.0+; per-producer-run, preserves caller casing) |
 | `schema_version` | Current `"1.4.0"`; additive bumps stay backwards-compatible |
 

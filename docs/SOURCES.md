@@ -47,6 +47,11 @@ arrive with `vendors=[]`; the trade-off is symmetric with the existing
 "missing CWE = reject" semantic on `cwe_include`. Documented here so
 consumers know what `vendor_include` excludes.
 
+GHSA rows infer `vendors` (no CPE in the advisory): the lowercased GitHub org
+of `source_code_location` (`https://github.com/<org>/<repo>`, host-anchored as
+in the NVD ref inference), else the affected `vulnerabilities[].package.name`
+values — so in-scope OSS advisories (e.g. `fastapi`) pass `vendor_include`.
+
 `keywords_matched` is populated per-producer-run: the subset of the
 producer's resolved `settings.keywords` that hit the row's
 `id + description` (settings form preserved, so casing matches the

@@ -14,6 +14,7 @@ from typing import Any
 from warnings import warn
 
 from gha_sec_feed import http
+from gha_sec_feed.fetchers.nvd import _GITHUB_ORG_RE
 from gha_sec_feed.models import FeedRow
 
 _ENDPOINT = "https://api.github.com/advisories"
@@ -83,6 +84,25 @@ def _refs(advisory: dict[str, Any]) -> list[str]:
     return refs or [_ENDPOINT]
 
 
+def _vendors(advisory: dict[str, Any]) -> list[str]:
+    """Infer vendors so ``vendor_include`` can admit GHSA rows (#71).
+
+    The owning org of ``source_code_location`` (``https://github.com/<org>/
+    <repo>``) mirrors the NVD GitHub-ref inference and usually matches the CPE
+    vendor. Without one, fall back to the affected ``vulnerabilities[].package
+    .name`` values. Lowercased, deduped, first-occurrence order.
+    """
+    m = _GITHUB_ORG_RE.match(advisory.get("source_code_location") or "")
+    if m is not None:
+        return [m.group(1).lower()]
+    vendors: list[str] = []
+    for vuln in advisory.get("vulnerabilities") or []:
+        name = ((vuln.get("package") or {}).get("name") or "").lower()
+        if name and name not in vendors:
+            vendors.append(name)
+    return vendors
+
+
 def _normalize_published(value: str) -> str:
     """Convert an ISO timestamp to ISO-Z without sub-seconds."""
     return value.split(".", 1)[0].rstrip("Z") + "Z"
@@ -105,6 +125,7 @@ def _to_row(advisory: dict[str, Any]) -> FeedRow:
         refs=_refs(advisory),
         description=advisory.get("summary", ""),
         cwes=_cwes(advisory),
+        vendors=_vendors(advisory),
     )
 
 

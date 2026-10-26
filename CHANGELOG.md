@@ -20,6 +20,9 @@ Types of changes: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`,
   degradation as MSRC's WAF may block datacenter IPs.
 - **NVD vendor inference** — when CPE analysis is absent, infer vendors from
   `github.com/<org>` references (host-anchored).
+- **GHSA vendor inference** — GHSA rows carry `vendors` (the
+  `source_code_location` GitHub org, else affected package names), so the
+  vendor showcase admits in-scope OSS advisories (#71).
 - **Graceful per-source degradation** — one source failing is logged and
   skipped instead of sinking the whole refresh; only an all-sources failure errors.
 - **Docs**: `CONTRIBUTING.md`, `docs/SCHEMA.md`, `docs/reusable-workflow.md`;
