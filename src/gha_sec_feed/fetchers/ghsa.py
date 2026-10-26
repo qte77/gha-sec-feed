@@ -19,6 +19,9 @@ from gha_sec_feed.models import FeedRow
 
 _ENDPOINT = "https://api.github.com/advisories"
 _PER_PAGE = 100
+# Safety guard on Link-header pagination: 20 x 100 = 2000 advisories per run,
+# far above a weekly window, so hitting it signals a runaway cursor loop.
+_MAX_PAGES = 20
 _SEVERITIES = frozenset({"critical", "high", "medium", "low"})
 # GitHub recommends an explicit Accept + API version for REST calls.
 _GH_HEADERS = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
@@ -129,20 +132,30 @@ def _to_row(advisory: dict[str, Any]) -> FeedRow:
 def fetch(since: str) -> list[FeedRow]:
     """Fetch reviewed advisories published since ``since`` (ISO-8601 Z UTC).
 
-    Withdrawn advisories are dropped. A single page of up to 100 advisories is
-    fetched (no pagination); if the page is full, a warning is emitted so the
-    cap is visible rather than silently truncating.
+    Withdrawn advisories are dropped. ``/advisories`` paginates by cursor, so
+    the ``Link: rel="next"`` URL is followed (it still passes the egress
+    allowlist in :mod:`gha_sec_feed.http`) for up to :data:`_MAX_PAGES`
+    pages; if the guard is hit a warning is emitted rather than silently
+    truncating.
     """
-    params = {
+    params: dict[str, str] | None = {
         "type": "reviewed",
         "per_page": str(_PER_PAGE),
         "published": f">={since[:10]}",
     }
-    payload = loads(http.get(_ENDPOINT, params=params, headers=_GH_HEADERS))
-    if len(payload) >= _PER_PAGE:
+    url: str | None = _ENDPOINT
+    payload: list[dict[str, Any]] = []
+    for _ in range(_MAX_PAGES):
+        if url is None:
+            break
+        resp = http.get_response(url, params=params, headers=_GH_HEADERS)
+        payload.extend(loads(resp.content))
+        # The next-page URL already carries the full query (filters + cursor).
+        url, params = resp.links.get("next", {}).get("url"), None
+    if url is not None:
         warn(
-            f"GHSA fetch hit the {_PER_PAGE}-advisory page cap; advisories "
-            "published in this window may be omitted (pagination not implemented).",
+            f"GHSA fetch hit the {_MAX_PAGES}-page guard ({_MAX_PAGES * _PER_PAGE} "
+            "advisories); advisories published in this window may be omitted.",
             RuntimeWarning,
             stacklevel=2,
         )
