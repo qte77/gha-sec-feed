@@ -51,6 +51,7 @@ Types of changes: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`,
 
 ### Security
 
+- `msgpack` 1.2.1 -> 1.2.4 in `uv.lock` (CVE-2026-114613), which had made `make audit` and every PR fail
 - Bumped `pydantic-settings` to 2.14.2 (symlink-traversal advisory) and
   `actions/checkout` to v7.
 - Restricted the repo Actions policy to a `selected` allowlist (github-owned +
