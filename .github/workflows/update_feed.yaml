@@ -182,4 +182,26 @@ jobs:
             --base main \
             --head "$branch"
           gh pr merge "$branch" --squash --auto --delete-branch
+
+          # Reason: with --auto, --delete-branch doesn't delete the head branch once the merge
+          # happens later, and neither did the repo's delete-on-merge setting (19 leftover
+          # auto-update-* branches by 2026-11-17). Wait for the merge (bounded, ~15 min), then
+          # delete the branch; if the PR is still open by then, keep the branch for it.
+          for _ in $(seq 1 60); do
+            state=$(gh pr view "$branch" --json state --jq '.state' || echo UNKNOWN)
+            case "$state" in
+              MERGED)
+                gh api -X DELETE "repos/$repo/git/refs/heads/$branch" > /dev/null 2>&1 \
+                  && echo "deleted merged branch $branch" \
+                  || echo "::warning::could not delete branch $branch (already deleted?)"
+                exit 0
+                ;;
+              CLOSED)
+                echo "::warning::PR for $branch was closed without merging; branch kept"
+                exit 0
+                ;;
+            esac
+            sleep 15
+          done
+          echo "::warning::PR for $branch not merged after 15 minutes; branch kept for the open PR"
 ...

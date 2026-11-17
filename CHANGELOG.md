@@ -40,6 +40,9 @@ Types of changes: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`,
 
 ### Fixed
 
+- `update_feed.yaml` deletes the data PR's `auto-update-*` branch once the auto-merge lands
+  (waits up to 15 minutes; keeps the branch if the PR is still open or was closed). `--delete-branch`
+  together with `--auto` doesn't delete it, and leftover branches piled up
 - GHSA fetch now follows `Link: rel="next"` cursor pagination (bounded by a
   20-page guard) instead of stopping at the first 100 advisories (#68).
 - KEV `notes` with multiple semicolon-separated URLs now split into distinct
